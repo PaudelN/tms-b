@@ -4,6 +4,7 @@ namespace App\Helpers;
 
 use Exception;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -21,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'extra'
     ];
 
     /**
@@ -43,6 +45,23 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'extra'=>'array'
         ];
+    }
+
+    /**
+     * Get the workspaces for the user.
+     */
+    public function workspaces(): HasMany
+    {
+        return $this->hasMany(Workspace::class);
+    }
+
+    /**
+     * Get active workspaces for the user.
+     */
+    public function activeWorkspaces(): HasMany
+    {
+        return $this->workspaces()->active();
     }
 }
