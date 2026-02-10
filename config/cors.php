@@ -1,11 +1,14 @@
 <?php
 
 return [
-    'paths' => ['*', 'api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['*', 'http://localhost:9000', 'http://localhost:3000'],
+    'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'http://localhost:3000',
+        'http://localhost:9000',
+    ],
 
     'allowed_origins_patterns' => [],
 
@@ -17,3 +20,5 @@ return [
 
     'supports_credentials' => true,
 ];
+
+
