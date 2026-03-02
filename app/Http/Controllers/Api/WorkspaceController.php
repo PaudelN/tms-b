@@ -17,7 +17,7 @@ class WorkspaceController extends Controller
      * Display a listing of workspaces.
      */
     public function index(Request $request)
-    {
+    {;
         $paginator = Workspace::query()
             ->where('user_id', auth()->id())
             ->paginateWithFilters(
