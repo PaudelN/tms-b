@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Workspace;
 
+use App\Enums\WorkspaceStatus;
 use App\Helpers\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 
 class UpdateRequest extends FormRequest
 {
@@ -17,7 +19,8 @@ class UpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'sometimes|required|string|max:255',
+            'name'        => 'sometimes|required|string|min:3|max:255',
+            'status'      => ['sometimes', 'required', 'string', Rule::enum(WorkspaceStatus::class)],
             'description' => 'nullable|string|max:1000',
         ];
     }
@@ -25,9 +28,12 @@ class UpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Workspace name is required',
-            'name.max' => 'Workspace name cannot exceed 255 characters',
-            'description.max' => 'Description cannot exceed 1000 characters',
+            'name.required'    => 'Workspace name is required.',
+            'name.min'         => 'Workspace name must be at least 3 characters.',
+            'name.max'         => 'Workspace name cannot exceed 255 characters.',
+            'status.required'  => 'Please select a status.',
+            'status.enum'      => 'The selected status is invalid.',
+            'description.max'  => 'Description cannot exceed 1000 characters.',
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\WorkspaceStatus;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Workspace\CreateRequest;
@@ -37,9 +38,10 @@ class WorkspaceController extends Controller
     {
         try {
             $workspace = Workspace::create([
-                'name' => $request->name,
+                'name'        => $request->name,
                 'description' => $request->description,
-                'user_id' => auth()->id(),
+                'status'      => $request->status,
+                'user_id'     => auth()->id(),
             ]);
 
             $workspace->load('user');
@@ -51,6 +53,11 @@ class WorkspaceController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::exception($e, 'Failed to create workspace');
         }
+    }
+
+    public function statuses()
+    {
+        return ApiResponse::successData(WorkspaceStatus::toArray());
     }
 
     /**

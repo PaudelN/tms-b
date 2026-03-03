@@ -39,7 +39,7 @@ class UserSeeder extends Seeder
         ]);
 
         // Create additional random users
-        User::factory(10)->create();
+        User::factory(20)->create();
 
         $this->command->info('✓ Users created successfully!');
         $this->command->info('  - Admin: admin@example.com');

@@ -11,8 +11,10 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
-    
+
+    //workspaces
     Route::apiResource('workspaces', WorkspaceController::class);
+    Route::get('/enums/workspace-statuses', [WorkspaceController::class, 'statuses']);
 
     //users
     Route::get('/users',function(){ return User::all();});

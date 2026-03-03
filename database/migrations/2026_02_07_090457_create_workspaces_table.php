@@ -1,5 +1,4 @@
 <?php
-
 use App\Enums\WorkspaceStatus;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
@@ -18,16 +17,19 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description')->nullable();
-            $table->foreignIdfor(User::class);
+
+            $table->foreignIdFor(User::class)->constrained();
             $table->string('status')->default(WorkspaceStatus::ACTIVE->value);
-            $table->timestamps();
             $table->json('extra')->nullable();
+
+            // Timestamps & soft deletes
+            $table->timestamps();
             $table->softDeletes();
 
-            // Indexes
+            // Indexes for scalability
             $table->index('slug');
-            $table->index('user_id');
             $table->index('status');
+            $table->index('user_id');
             $table->index(['user_id', 'status']);
         });
     }
