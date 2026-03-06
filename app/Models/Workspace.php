@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Contracts\KanbanEntity;
 use App\Enums\WorkspaceStatus;
+use App\Traits\HasKanban;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,15 +15,10 @@ use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 use Illuminate\Support\Str;
 
-class Workspace extends Model
+class Workspace extends Model implements KanbanEntity
 {
-    use HasFactory, SoftDeletes, HasSlug, Paginatable;
+    use HasFactory, SoftDeletes, HasSlug, Paginatable, HasKanban;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'slug',
@@ -31,17 +28,52 @@ class Workspace extends Model
         'extra'
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
         'status' => WorkspaceStatus::class,
         'extra'  => 'array',
     ];
 
-    /** Slug configuration */
+    // ── KanbanEntity contract ─────────────────────────────────────────────────
+
+    /**
+     * The column that holds the kanban stage value.
+     * For Workspace this is the 'status' enum column.
+     *
+     * For future entities this will differ:
+     *   Task  → 'stage'                (its own pipeline_stage enum)
+     *   Deal  → 'pipeline_stage_id'    (FK to a pipeline_stages table)
+     */
+    public function kanbanColumnField(): string
+    {
+        return 'status';
+    }
+
+    /**
+     * Guard: prevent moving if the workspace is somehow locked.
+     * Extend this for business rules (e.g. prevent moving to archived if has active tasks).
+     */
+    public function kanbanCanMove(mixed $newStageValue): bool
+    {
+        return true; // No restrictions for workspaces currently
+    }
+
+    /**
+     * Side effects after a successful stage change.
+     * Good place to fire events for real-time updates, webhooks, audit logs.
+     */
+    public function kanbanAfterMove(string $field, mixed $newStageValue): void
+    {
+        // Example for future use:
+        // WorkspaceStageChanged::dispatch($this, $newStageValue);
+    }
+
+    public function kanbanBeforeMove(mixed $newStageValue): void
+    {
+        // No pre-move guards for workspaces currently
+    }
+
+    // ── Slug ──────────────────────────────────────────────────────────────────
+
     public function getSlugOptions(): SlugOptions
     {
         return SlugOptions::create()
@@ -51,7 +83,8 @@ class Workspace extends Model
             ->preventOverwrite();
     }
 
-    /** Owner of the workspace */
+    // ── Relationships ─────────────────────────────────────────────────────────
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -77,21 +110,21 @@ class Workspace extends Model
         return $this->members()->wherePivot('status', 'pending');
     }
 
-    /** Invite a member (copy-paste link) */
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     public function inviteMember(?int $userId = null): string
     {
         $token = (string) Str::uuid();
 
         $this->members()->attach($userId, [
-            'is_owner' => false,
-            'status' => 'pending',
+            'is_owner'     => false,
+            'status'       => 'pending',
             'invite_token' => $token
         ]);
 
         return url("/workspace/join/{$token}");
     }
 
-    /** Accept an invitation using token */
     public function acceptInvitation(string $token, int $userId): void
     {
         $pivot = $this->members()
@@ -100,43 +133,41 @@ class Workspace extends Model
                       ->firstOrFail();
 
         $this->members()->updateExistingPivot($userId, [
-            'user_id' => $userId,
-            'status' => 'active',
+            'user_id'      => $userId,
+            'status'       => 'active',
             'invite_token' => null
         ]);
     }
 
-    /** Scope for active workspaces */
+    // ── Scopes ────────────────────────────────────────────────────────────────
+
     public function scopeActive($query)
     {
         return $query->where('status', WorkspaceStatus::ACTIVE);
     }
 
-    /** Scope for archived workspaces */
     public function scopeArchived($query)
     {
         return $query->where('status', WorkspaceStatus::ARCHIVED);
     }
 
-    /** Check if workspace is active */
+    // ── Computed helpers ──────────────────────────────────────────────────────
+
     public function isActive(): bool
     {
         return $this->status === WorkspaceStatus::ACTIVE;
     }
 
-    /** Check if workspace is archived */
     public function isArchived(): bool
     {
         return $this->status === WorkspaceStatus::ARCHIVED;
     }
 
-    /** Archive the workspace */
     public function archive(): bool
     {
         return $this->update(['status' => WorkspaceStatus::ARCHIVED]);
     }
 
-    /** Activate the workspace */
     public function activate(): bool
     {
         return $this->update(['status' => WorkspaceStatus::ACTIVE]);

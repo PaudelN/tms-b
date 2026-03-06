@@ -12,10 +12,23 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
 
 Route::middleware(['auth:sanctum'])->group(function () {
 
-    //workspaces
-    Route::apiResource('workspaces', WorkspaceController::class);
-    Route::get('/enums/workspace-statuses', [WorkspaceController::class, 'statuses']);
+    // ── Workspaces ────────────────────────────────────────────────────────────
+    //
+    // IMPORTANT: kanban routes MUST be declared BEFORE apiResource
+    // so they are not swallowed by the {workspace} route parameter.
 
-    //users
-    Route::get('/users',function(){ return User::all();});
+    // Kanban operations (provided by KanbanController parent)
+    Route::post('workspaces/kanban/move',    [WorkspaceController::class, 'kanbanMove']);
+    Route::post('workspaces/kanban/reorder', [WorkspaceController::class, 'kanbanReorder']);
+
+    // Standard CRUD (index handles kanban fetch via ?kanban_stage= param)
+    Route::apiResource('workspaces', WorkspaceController::class);
+
+    // Enum definitions for frontend stage/column configuration
+    Route::get('enums/workspace-statuses', [WorkspaceController::class, 'statuses']);
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    Route::get('/users', function () {
+        return User::all();
+    });
 });

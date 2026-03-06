@@ -32,6 +32,26 @@ enum WorkspaceStatus: string
         };
     }
 
+    /**
+     * Actual hex color — used by the frontend for:
+     *   - Kanban card top-stripe (the 3D colored band)
+     *   - Column header dot glow
+     *   - Stage pill background tints
+     *
+     * These match the Tailwind utility colors used in dotClass() / badgeClass()
+     * but as real hex so the frontend can use them in inline styles.
+     */
+    public function color(): string
+    {
+        return match($this) {
+            self::ACTIVE    => '#10b981', // emerald-500
+            self::PENDING   => '#fbbf24', // amber-400
+            self::ON_HOLD   => '#f87171', // red-400
+            self::COMPLETED => '#60a5fa', // blue-400
+            self::ARCHIVED  => '#fb7185', // rose-400
+        };
+    }
+
     public function dotClass(): string
     {
         return match($this) {
@@ -59,14 +79,21 @@ enum WorkspaceStatus: string
         return array_column(self::cases(), 'value');
     }
 
+    /**
+     * Full serialized array — returned by GET /enums/workspace-statuses.
+     * The frontend stores this as "stages" for UiKanban column definitions.
+     * All fields (value, label, description, color, dot, badge) are included
+     * so the kanban board has everything it needs without extra API calls.
+     */
     public static function toArray(): array
     {
         return array_map(fn($case) => [
             'value'       => $case->value,
             'label'       => $case->label(),
             'description' => $case->description(),
-            'dot'         => $case->dotClass(),
-            'badge'       => $case->badgeClass(),
+            'color'       => $case->color(),    // hex — for card stripe + column dot glow
+            'dot'         => $case->dotClass(), // tailwind — for dot indicators
+            'badge'       => $case->badgeClass(), // tailwind — for badge pill
         ], self::cases());
     }
 }
