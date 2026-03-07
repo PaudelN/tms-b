@@ -188,23 +188,56 @@ class WorkspaceController extends KanbanController
  * Example response:
  *   { "data": { "active": 12, "pending": 4, "on_hold": 1, "completed": 7, "archived": 2 } }
  */
-public function counts(Request $request, WorkspaceFilter $filter)
-{
-    $baseQuery = Workspace::query()
-        ->where('user_id', auth()->id())
-        ->filter($filter);
+    public function counts(Request $request, WorkspaceFilter $filter)
+    {
+        $baseQuery = Workspace::query()
+            ->where('user_id', auth()->id())
+            ->filter($filter);
 
-    $filter->cleanRequest();
+        $filter->cleanRequest();
 
-    $counts = WorkspaceStatus::cases();
+        $counts = WorkspaceStatus::cases();
 
-    $result = [];
-    foreach ($counts as $status) {
-        $result[$status->value] = (clone $baseQuery)
-            ->where('status', $status->value)
-            ->count();
+        $result = [];
+        foreach ($counts as $status) {
+            $result[$status->value] = (clone $baseQuery)
+                ->where('status', $status->value)
+                ->count();
+        }
+
+        return ApiResponse::successData($result);
     }
 
-    return ApiResponse::successData($result);
-}
+    public function board(Request $request, WorkspaceFilter $filter)
+    {
+        $baseQuery = Workspace::query()
+            ->where('user_id', auth()->id())
+            ->filter($filter);
+
+        $filter->cleanRequest();
+
+        $perPage = min((int) $request->get('per_page', 50), 200);
+
+        $result = [];
+
+        foreach (WorkspaceStatus::cases() as $status) {
+            // scopeForKanbanStage() is provided by HasKanban trait.
+            // It handles: stage filter + KanbanOrder-based ordering + fallback to created_at.
+            $paginator = (clone $baseQuery)
+                ->forKanbanStage($status->value)
+                ->paginate($perPage);
+
+            $result[$status->value] = [
+                'data' => ListResource::collection($paginator->items()),
+                'meta' => [
+                    'total'        => $paginator->total(),
+                    'current_page' => $paginator->currentPage(),
+                    'last_page'    => $paginator->lastPage(),
+                    'per_page'     => $paginator->perPage(),
+                ],
+            ];
+        }
+
+        return ApiResponse::successData($result);
+    }
 }
