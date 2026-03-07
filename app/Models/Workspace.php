@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Contracts\KanbanEntity;
 use App\Enums\WorkspaceStatus;
+use App\Traits\Filterable;
 use App\Traits\HasKanban;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,8 @@ use Illuminate\Support\Str;
 
 class Workspace extends Model implements KanbanEntity
 {
-    use HasFactory, SoftDeletes, HasSlug, Paginatable, HasKanban;
+    // Filterable added — everything else is untouched.
+    use HasFactory, SoftDeletes, HasSlug, Paginatable, HasKanban, Filterable;
 
     protected $fillable = [
         'name',
@@ -54,7 +56,7 @@ class Workspace extends Model implements KanbanEntity
      */
     public function kanbanCanMove(mixed $newStageValue): bool
     {
-        return true; // No restrictions for workspaces currently
+        return true;
     }
 
     /**
@@ -63,13 +65,12 @@ class Workspace extends Model implements KanbanEntity
      */
     public function kanbanAfterMove(string $field, mixed $newStageValue): void
     {
-        // Example for future use:
-        // WorkspaceStageChanged::dispatch($this, $newStageValue);
+        // Example: WorkspaceStageChanged::dispatch($this, $newStageValue);
     }
 
     public function kanbanBeforeMove(mixed $newStageValue): void
     {
-        // No pre-move guards for workspaces currently
+        //
     }
 
     // ── Slug ──────────────────────────────────────────────────────────────────
@@ -90,7 +91,6 @@ class Workspace extends Model implements KanbanEntity
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    /** Members of the workspace (pivot table) */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_users')
@@ -98,13 +98,11 @@ class Workspace extends Model implements KanbanEntity
                     ->withTimestamps();
     }
 
-    /** Only active members */
     public function activeMembers(): BelongsToMany
     {
         return $this->members()->wherePivot('status', 'active');
     }
 
-    /** Only pending members (invited but not joined yet) */
     public function pendingMembers(): BelongsToMany
     {
         return $this->members()->wherePivot('status', 'pending');
@@ -127,15 +125,15 @@ class Workspace extends Model implements KanbanEntity
 
     public function acceptInvitation(string $token, int $userId): void
     {
-        $pivot = $this->members()
-                      ->wherePivot('status', 'pending')
-                      ->wherePivot('invite_token', $token)
-                      ->firstOrFail();
+        $this->members()
+             ->wherePivot('status', 'pending')
+             ->wherePivot('invite_token', $token)
+             ->firstOrFail();
 
         $this->members()->updateExistingPivot($userId, [
             'user_id'      => $userId,
             'status'       => 'active',
-            'invite_token' => null
+            'invite_token' => null,
         ]);
     }
 

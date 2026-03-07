@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\WorkspaceStatus;
+use App\Filters\WorkspaceFilter;
 use App\Helpers\ApiResponse;
 use App\Http\Requests\Workspace\CreateRequest;
 use App\Http\Requests\Workspace\UpdateRequest;
 use App\Http\Resources\Workspace\DetailResource;
 use App\Http\Resources\Workspace\ListResource;
 use App\Models\Workspace;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 /**
@@ -18,19 +20,25 @@ use Illuminate\Http\Request;
  *   kanbanMove()    → POST /workspaces/kanban/move
  *   kanbanReorder() → POST /workspaces/kanban/reorder
  *
- * The fetch is handled by index() below with ?kanban_stage=active param.
- * UiTable, UiList, UiKanban all call the SAME index() endpoint.
- * This ensures data consistency — one source of truth.
+ * Filter integration:
+ *   WorkspaceFilter is auto-injected by Laravel's service container.
+ *   It reads the current Request internally — you never instantiate it.
+ *   ->filter($filter) runs before both kanban and paginate paths,
+ *   so all three view modes (table, list, kanban) are filtered consistently.
  */
 class WorkspaceController extends KanbanController
 {
     /**
      * Tell the parent which model's kanban we're handling.
-     * This powers kanbanMove() and kanbanReorder() automatically.
      */
     protected function kanbanModelClass(): string
     {
         return Workspace::class;
+    }
+       protected function status(Builder $query, mixed $value): void
+    {
+        $values = is_array($value) ? $value : [$value];
+        $query->whereIn('status', $values);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -38,47 +46,58 @@ class WorkspaceController extends KanbanController
     /**
      * GET /workspaces
      *
-     * Unified fetch endpoint for ALL three view modes:
-     *   UiTable → normal request, no special params
-     *   UiList  → normal request, no special params
-     *   UiKanban → adds ?kanban_stage=active (per stage, per page)
+     * Unified fetch endpoint for ALL three view modes.
+     * WorkspaceFilter is resolved and injected automatically by Laravel.
      *
-     * When kanban_stage is present:
-     *   - Applies forKanbanStage scope (two-query ordering, no JOIN)
-     *   - Returns same paginated format as table/list
-     *   - paginate() COUNT is always correct
+     * Supported filter params:
+     *   ?creator=1                          filter by owner
+     *   ?created_from=2024-01-01            date range start
+     *   ?created_to=2024-12-31              date range end
+     *   ?tags[]=1&tags[]=2                  tag IDs (array or comma-separated)
+     *   ?sort=asc|desc                      order by created_at
+     *   ?search=keyword                     searched across name, description (Paginatable)
+     *   ?sort_by=name&sort_order=asc        explicit column sort (Paginatable)
+     *   ?kanban_stage=active                triggers kanban mode (HasKanban)
      *
-     * When kanban_stage is absent:
-     *   - Normal paginateWithFilters (search, sort, filters)
+     * All unknown params are silently ignored.
      */
-    public function index(Request $request)
-    {
-        $baseQuery = Workspace::query()
-            ->where('user_id', auth()->id());
+  public function index(Request $request, WorkspaceFilter $filter)
+{
+    $baseQuery = Workspace::query()
+        ->where('user_id', auth()->id())
+        ->filter($filter);
 
-        // ── Kanban mode ──────────────────────────────────────────────────────
-        if ($request->filled('kanban_stage')) {
-            $paginator = $this->kanban->fetchStage(
-                query:       $baseQuery,
-                stageValue:  $request->kanban_stage,
-                stageField:  'status',
-                page:        (int) $request->get('page', 1),
-                perPage:     (int) $request->get('per_page', 10),
-            );
+    // ── CRITICAL FIX ──────────────────────────────────────────────────────
+    // Strip params already consumed by WorkspaceFilter (created_from,
+    // created_to, created_at, creator, sort, status, tags…) from the
+    // request so paginateWithFilters does NOT apply them as raw WHERE
+    // conditions on non-existent columns.
+    $filter->cleanRequest();
+    // ──────────────────────────────────────────────────────────────────────
 
-            return Workspace::formatPaginatedResponse($paginator, ListResource::class);
-        }
-
-        // ── Normal table / list mode ─────────────────────────────────────────
-        $paginator = $baseQuery->paginateWithFilters(
-            request:          $request,
-            searchableColumns: ['name', 'description'],
-            defaultSortBy:    'created_at',
-            defaultSortOrder: 'desc'
+    // ── Kanban mode ───────────────────────────────────────────────────────
+    if ($request->filled('kanban_stage')) {
+        $paginator = $this->kanban->fetchStage(
+            query:      $baseQuery,
+            stageValue: $request->kanban_stage,
+            stageField: 'status',
+            page:       (int) $request->get('page', 1),
+            perPage:    (int) $request->get('per_page', 10),
         );
 
         return Workspace::formatPaginatedResponse($paginator, ListResource::class);
     }
+
+    // ── Table / List mode ─────────────────────────────────────────────────
+    $paginator = $baseQuery->paginateWithFilters(
+        request:           $request,
+        searchableColumns: ['name', 'description'],
+        defaultSortBy:     'created_at',
+        defaultSortOrder:  'desc'
+    );
+
+    return Workspace::formatPaginatedResponse($paginator, ListResource::class);
+}
 
     /**
      * GET /enums/workspace-statuses
