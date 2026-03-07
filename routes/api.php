@@ -21,6 +21,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('workspaces/kanban/move',    [WorkspaceController::class, 'kanbanMove']);
     Route::post('workspaces/kanban/reorder', [WorkspaceController::class, 'kanbanReorder']);
 
+
+    Route::get('workspaces/counts', [WorkspaceController::class, 'counts']);
+
     // Standard CRUD (index handles kanban fetch via ?kanban_stage= param)
     Route::apiResource('workspaces', WorkspaceController::class);
 

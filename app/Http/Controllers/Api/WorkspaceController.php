@@ -177,4 +177,34 @@ class WorkspaceController extends KanbanController
             return ApiResponse::exception($e, 'Failed to delete workspace');
         }
     }
+
+    /**
+ * GET /workspaces/counts
+ *
+ * Returns a single object with per-status item counts for the
+ * authenticated user. Used by the frontend header stats bar across
+ * all three views (table, list, kanban) without firing N requests.
+ *
+ * Example response:
+ *   { "data": { "active": 12, "pending": 4, "on_hold": 1, "completed": 7, "archived": 2 } }
+ */
+public function counts(Request $request, WorkspaceFilter $filter)
+{
+    $baseQuery = Workspace::query()
+        ->where('user_id', auth()->id())
+        ->filter($filter);
+
+    $filter->cleanRequest();
+
+    $counts = WorkspaceStatus::cases();
+
+    $result = [];
+    foreach ($counts as $status) {
+        $result[$status->value] = (clone $baseQuery)
+            ->where('status', $status->value)
+            ->count();
+    }
+
+    return ApiResponse::successData($result);
+}
 }
