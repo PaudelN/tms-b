@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Sluggable\HasSlug;
@@ -18,7 +19,6 @@ use Spatie\Sluggable\SlugOptions;
 
 class Workspace extends Model implements KanbanEntity
 {
-    // Filterable added — everything else is untouched.
     use Filterable, HasFactory, HasKanban, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
@@ -32,37 +32,21 @@ class Workspace extends Model implements KanbanEntity
 
     protected $casts = [
         'status' => WorkspaceStatus::class,
-        'extra' => 'array',
+        'extra'  => 'array',
     ];
 
     // ── KanbanEntity contract ─────────────────────────────────────────────────
 
-    /**
-     * The column that holds the kanban stage value.
-     * For Workspace this is the 'status' enum column.
-     *
-     * For future entities this will differ:
-     *   Task  → 'stage'                (its own pipeline_stage enum)
-     *   Deal  → 'pipeline_stage_id'    (FK to a pipeline_stages table)
-     */
     public function kanbanColumnField(): string
     {
         return 'status';
     }
 
-    /**
-     * Guard: prevent moving if the workspace is somehow locked.
-     * Extend this for business rules (e.g. prevent moving to archived if has active tasks).
-     */
     public function kanbanCanMove(mixed $newStageValue): bool
     {
         return true;
     }
 
-    /**
-     * Side effects after a successful stage change.
-     * Good place to fire events for real-time updates, webhooks, audit logs.
-     */
     public function kanbanAfterMove(string $field, mixed $newStageValue): void
     {
         // Example: WorkspaceStageChanged::dispatch($this, $newStageValue);
@@ -91,6 +75,15 @@ class Workspace extends Model implements KanbanEntity
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    /**
+     * All projects that belong to this workspace.
+     * Ordered by created_at desc so latest appear first in workspace detail.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class)->orderBy('created_at', 'desc');
+    }
+
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_users')
@@ -115,8 +108,8 @@ class Workspace extends Model implements KanbanEntity
         $token = (string) Str::uuid();
 
         $this->members()->attach($userId, [
-            'is_owner' => false,
-            'status' => 'pending',
+            'is_owner'     => false,
+            'status'       => 'pending',
             'invite_token' => $token,
         ]);
 
@@ -131,8 +124,8 @@ class Workspace extends Model implements KanbanEntity
             ->firstOrFail();
 
         $this->members()->updateExistingPivot($userId, [
-            'user_id' => $userId,
-            'status' => 'active',
+            'user_id'      => $userId,
+            'status'       => 'active',
             'invite_token' => null,
         ]);
     }

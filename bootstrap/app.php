@@ -13,8 +13,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // CORS must be first — prepend it globally
-        $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
-
+        // ✅ Add to GLOBAL stack (not just API) so OPTIONS preflights are caught first
+        $middleware->use([
+            \Illuminate\Http\Middleware\HandleCors::class, // ← FIRST
+            \Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
+            \Illuminate\Http\Middleware\TrustProxies::class,
+            \Illuminate\Http\Middleware\ValidatePostSize::class,
+            \Illuminate\Foundation\Http\Middleware\TrimStrings::class,
+            \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        ]);
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
