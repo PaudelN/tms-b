@@ -19,9 +19,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Kanban operations (provided by KanbanController parent)
     Route::get('workspaces/kanban/board', [WorkspaceController::class, 'board']);
-    Route::post('workspaces/kanban/move',    [WorkspaceController::class, 'kanbanMove']);
+    Route::post('workspaces/kanban/move', [WorkspaceController::class, 'kanbanMove']);
     Route::post('workspaces/kanban/reorder', [WorkspaceController::class, 'kanbanReorder']);
-
 
     Route::get('workspaces/counts', [WorkspaceController::class, 'counts']);
 

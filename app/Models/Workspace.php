@@ -12,14 +12,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
-use Illuminate\Support\Str;
 
 class Workspace extends Model implements KanbanEntity
 {
     // Filterable added — everything else is untouched.
-    use HasFactory, SoftDeletes, HasSlug, Paginatable, HasKanban, Filterable;
+    use Filterable, HasFactory, HasKanban, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -27,12 +27,12 @@ class Workspace extends Model implements KanbanEntity
         'description',
         'user_id',
         'status',
-        'extra'
+        'extra',
     ];
 
     protected $casts = [
         'status' => WorkspaceStatus::class,
-        'extra'  => 'array',
+        'extra' => 'array',
     ];
 
     // ── KanbanEntity contract ─────────────────────────────────────────────────
@@ -94,8 +94,8 @@ class Workspace extends Model implements KanbanEntity
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_users')
-                    ->withPivot('is_owner', 'status', 'invite_token')
-                    ->withTimestamps();
+            ->withPivot('is_owner', 'status', 'invite_token')
+            ->withTimestamps();
     }
 
     public function activeMembers(): BelongsToMany
@@ -115,9 +115,9 @@ class Workspace extends Model implements KanbanEntity
         $token = (string) Str::uuid();
 
         $this->members()->attach($userId, [
-            'is_owner'     => false,
-            'status'       => 'pending',
-            'invite_token' => $token
+            'is_owner' => false,
+            'status' => 'pending',
+            'invite_token' => $token,
         ]);
 
         return url("/workspace/join/{$token}");
@@ -126,13 +126,13 @@ class Workspace extends Model implements KanbanEntity
     public function acceptInvitation(string $token, int $userId): void
     {
         $this->members()
-             ->wherePivot('status', 'pending')
-             ->wherePivot('invite_token', $token)
-             ->firstOrFail();
+            ->wherePivot('status', 'pending')
+            ->wherePivot('invite_token', $token)
+            ->firstOrFail();
 
         $this->members()->updateExistingPivot($userId, [
-            'user_id'      => $userId,
-            'status'       => 'active',
+            'user_id' => $userId,
+            'status' => 'active',
             'invite_token' => null,
         ]);
     }

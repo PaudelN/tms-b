@@ -33,20 +33,18 @@ class KanbanService
      * kanban ordering on top. This makes it work with the SAME index
      * endpoint that UiTable and UiList use — full data consistency.
      *
-     * @param  Builder  $query       Base query with all business filters applied
-     * @param  string   $stageValue  The stage to filter + order by
-     * @param  string   $stageField  The column on the entity table (e.g. 'status')
-     * @param  int      $page
-     * @param  int      $perPage
+     * @param  Builder  $query  Base query with all business filters applied
+     * @param  string  $stageValue  The stage to filter + order by
+     * @param  string  $stageField  The column on the entity table (e.g. 'status')
      */
     public function fetchStage(
         Builder $query,
-        string  $stageValue,
-        string  $stageField,
-        int     $page    = 1,
-        int     $perPage = 10
+        string $stageValue,
+        string $stageField,
+        int $page = 1,
+        int $perPage = 10
     ): LengthAwarePaginator {
-        $table      = $query->getModel()->getTable();
+        $table = $query->getModel()->getTable();
         $entityType = get_class($query->getModel());
 
         // Step 1: get ordered IDs from kanban_orders (index-only scan)
@@ -77,12 +75,12 @@ class KanbanService
      *   4. KanbanOrder::setOrder() → append to bottom of destination stage
      *   5. kanbanAfterMove()  → logged on failure, never blocks response
      *
-     * @throws \Exception  code 403 for permission denied, 422 for validation failure
+     * @throws \Exception code 403 for permission denied, 422 for validation failure
      */
     public function moveCard(Model&KanbanEntity $model, mixed $newStageValue): Model
     {
         // Authorization
-        if (!$model->kanbanCanMove($newStageValue)) {
+        if (! $model->kanbanCanMove($newStageValue)) {
             throw new \Exception('This item cannot be moved to that stage.', 403);
         }
 
@@ -141,20 +139,22 @@ class KanbanService
      *   we reject with 409 so the frontend knows to reload before overwriting
      *   someone else's drag order.
      *
-     * @param  string       $modelClass     Fully-qualified model class
-     * @param  string       $stageValue     The stage these IDs belong to
-     * @param  array        $orderedIds     Complete ordered ID list (what the user sees)
+     * @param  string  $modelClass  Fully-qualified model class
+     * @param  string  $stageValue  The stage these IDs belong to
+     * @param  array  $orderedIds  Complete ordered ID list (what the user sees)
      * @param  string|null  $lastOrderedAt  ISO timestamp for optimistic lock (optional)
      *
-     * @throws \Exception  code 409 on concurrent edit conflict
+     * @throws \Exception code 409 on concurrent edit conflict
      */
     public function reorderCards(
-        string  $modelClass,
-        string  $stageValue,
-        array   $orderedIds,
+        string $modelClass,
+        string $stageValue,
+        array $orderedIds,
         ?string $lastOrderedAt = null
     ): void {
-        if (empty($orderedIds)) return;
+        if (empty($orderedIds)) {
+            return;
+        }
 
         // Optional optimistic lock check
         if ($lastOrderedAt !== null) {
@@ -172,13 +172,13 @@ class KanbanService
 
         // Build upsert payload — position = array index
         $rows = array_values(array_map(
-            fn(int $id, int $index) => [
+            fn (int $id, int $index) => [
                 'entity_type' => $modelClass,
-                'entity_id'   => $id,
+                'entity_id' => $id,
                 'stage_value' => $stageValue,
-                'sort_order'  => $index,
-                'updated_at'  => $now,
-                'created_at'  => $now,
+                'sort_order' => $index,
+                'updated_at' => $now,
+                'created_at' => $now,
             ],
             $orderedIds,
             array_keys($orderedIds)
@@ -203,7 +203,9 @@ class KanbanService
     {
         $stageValue = $model->{$model->kanbanColumnField()};
 
-        if ($stageValue === null) return;
+        if ($stageValue === null) {
+            return;
+        }
 
         $stageString = $stageValue instanceof \BackedEnum
             ? $stageValue->value
@@ -233,7 +235,7 @@ class KanbanService
                 ->orderBy("{$table}.created_at", 'desc');
         } else {
             $cases = collect($orderedIds)
-                ->map(fn($id, $pos) => 'WHEN ' . (int)$id . ' THEN ' . $pos)
+                ->map(fn ($id, $pos) => 'WHEN '.(int) $id.' THEN '.$pos)
                 ->implode(' ');
 
             $query

@@ -27,7 +27,7 @@ trait HasKanban
     public function kanbanBeforeMove(mixed $newStageValue): void
     {
         // no-op — override to validate or block a move
-    } 
+    }
 
     public function kanbanAfterMove(string $field, mixed $newStageValue): void
     {
@@ -49,10 +49,12 @@ trait HasKanban
         // This ensures every entity is orderable from day one.
         // Placed at the bottom of its initial stage.
         static::created(function ($model) {
-            $field      = $model->kanbanColumnField();
+            $field = $model->kanbanColumnField();
             $stageValue = $model->{$field};
 
-            if ($stageValue === null) return;
+            if ($stageValue === null) {
+                return;
+            }
 
             // Get the enum value if it's a backed enum
             $stageString = $stageValue instanceof \BackedEnum
@@ -74,7 +76,9 @@ trait HasKanban
         static::updated(function ($model) {
             $field = $model->kanbanColumnField();
 
-            if (!$model->wasChanged($field)) return;
+            if (! $model->wasChanged($field)) {
+                return;
+            }
 
             $newStage = $model->{$field};
             $stageString = $newStage instanceof \BackedEnum
@@ -113,9 +117,9 @@ trait HasKanban
 
     public function scopeForKanbanStage(Builder $query, mixed $stageValue): Builder
     {
-        $table      = $this->getTable();
+        $table = $this->getTable();
         $entityType = static::class;
-        $field      = $this->kanbanColumnField();
+        $field = $this->kanbanColumnField();
 
         $stageString = $stageValue instanceof \BackedEnum
             ? $stageValue->value
@@ -148,7 +152,7 @@ trait HasKanban
         } else {
             // PostgreSQL / SQLite: CASE WHEN equivalent
             $cases = collect($orderedIds)
-                ->map(fn($id, $pos) => "WHEN " . (int)$id . " THEN " . $pos)
+                ->map(fn ($id, $pos) => 'WHEN '.(int) $id.' THEN '.$pos)
                 ->implode(' ');
 
             $query

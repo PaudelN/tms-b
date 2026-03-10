@@ -56,7 +56,7 @@ abstract class KanbanController extends Controller
     public function kanbanMove(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'model_id'  => 'required|integer',
+            'model_id' => 'required|integer',
             'column_id' => 'required',
         ]);
 
@@ -70,12 +70,13 @@ abstract class KanbanController extends Controller
             $updated = $this->kanban->moveCard($model, $data['column_id']);
         } catch (\Exception $e) {
             $status = $e->getCode() === 403 ? 403 : 422;
+
             return response()->json(['message' => $e->getMessage()], $status);
         }
 
         return response()->json([
             'success' => true,
-            'data'    => $updated,
+            'data' => $updated,
         ]);
     }
 
@@ -94,9 +95,9 @@ abstract class KanbanController extends Controller
     public function kanbanReorder(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'stage_value'     => 'required|string',
-            'ordered_ids'     => 'required|array|min:1',
-            'ordered_ids.*'   => 'integer',
+            'stage_value' => 'required|string',
+            'ordered_ids' => 'required|array|min:1',
+            'ordered_ids.*' => 'integer',
             'last_ordered_at' => 'sometimes|nullable|date',
         ]);
 
@@ -105,13 +106,14 @@ abstract class KanbanController extends Controller
 
         try {
             $this->kanban->reorderCards(
-                modelClass:    $modelClass,
-                stageValue:    $data['stage_value'],
-                orderedIds:    $data['ordered_ids'],
+                modelClass: $modelClass,
+                stageValue: $data['stage_value'],
+                orderedIds: $data['ordered_ids'],
                 lastOrderedAt: $data['last_ordered_at'] ?? null
             );
         } catch (\Exception $e) {
             $status = $e->getCode() === 409 ? 409 : 422;
+
             return response()->json(['message' => $e->getMessage()], $status);
         }
 
@@ -122,7 +124,7 @@ abstract class KanbanController extends Controller
 
     private function assertKanbanEntity(string $class): void
     {
-        if (!is_subclass_of($class, KanbanEntity::class)) {
+        if (! is_subclass_of($class, KanbanEntity::class)) {
             abort(500, "{$class} must implement the KanbanEntity interface.");
         }
     }

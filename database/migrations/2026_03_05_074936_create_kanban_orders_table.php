@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('stage_value');
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
-            
+
             // One row per entity — a workspace is in exactly one stage at a time.
             // NOTE: If you later need multi-stage entities (e.g. task in multiple pipelines),
             // change this to unique(['entity_type', 'entity_id', 'stage_value'])

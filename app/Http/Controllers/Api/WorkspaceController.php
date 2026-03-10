@@ -35,7 +35,8 @@ class WorkspaceController extends KanbanController
     {
         return Workspace::class;
     }
-       protected function status(Builder $query, mixed $value): void
+
+    protected function status(Builder $query, mixed $value): void
     {
         $values = is_array($value) ? $value : [$value];
         $query->whereIn('status', $values);
@@ -61,43 +62,43 @@ class WorkspaceController extends KanbanController
      *
      * All unknown params are silently ignored.
      */
-  public function index(Request $request, WorkspaceFilter $filter)
-{
-    $baseQuery = Workspace::query()
-        ->where('user_id', auth()->id())
-        ->filter($filter);
+    public function index(Request $request, WorkspaceFilter $filter)
+    {
+        $baseQuery = Workspace::query()
+            ->where('user_id', auth()->id())
+            ->filter($filter);
 
-    // ── CRITICAL FIX ──────────────────────────────────────────────────────
-    // Strip params already consumed by WorkspaceFilter (created_from,
-    // created_to, created_at, creator, sort, status, tags…) from the
-    // request so paginateWithFilters does NOT apply them as raw WHERE
-    // conditions on non-existent columns.
-    $filter->cleanRequest();
-    // ──────────────────────────────────────────────────────────────────────
+        // ── CRITICAL FIX ──────────────────────────────────────────────────────
+        // Strip params already consumed by WorkspaceFilter (created_from,
+        // created_to, created_at, creator, sort, status, tags…) from the
+        // request so paginateWithFilters does NOT apply them as raw WHERE
+        // conditions on non-existent columns.
+        $filter->cleanRequest();
+        // ──────────────────────────────────────────────────────────────────────
 
-    // ── Kanban mode ───────────────────────────────────────────────────────
-    if ($request->filled('kanban_stage')) {
-        $paginator = $this->kanban->fetchStage(
-            query:      $baseQuery,
-            stageValue: $request->kanban_stage,
-            stageField: 'status',
-            page:       (int) $request->get('page', 1),
-            perPage:    (int) $request->get('per_page', 10),
+        // ── Kanban mode ───────────────────────────────────────────────────────
+        if ($request->filled('kanban_stage')) {
+            $paginator = $this->kanban->fetchStage(
+                query: $baseQuery,
+                stageValue: $request->kanban_stage,
+                stageField: 'status',
+                page: (int) $request->get('page', 1),
+                perPage: (int) $request->get('per_page', 10),
+            );
+
+            return Workspace::formatPaginatedResponse($paginator, ListResource::class);
+        }
+
+        // ── Table / List mode ─────────────────────────────────────────────────
+        $paginator = $baseQuery->paginateWithFilters(
+            request: $request,
+            searchableColumns: ['name', 'description'],
+            defaultSortBy: 'created_at',
+            defaultSortOrder: 'desc'
         );
 
         return Workspace::formatPaginatedResponse($paginator, ListResource::class);
     }
-
-    // ── Table / List mode ─────────────────────────────────────────────────
-    $paginator = $baseQuery->paginateWithFilters(
-        request:           $request,
-        searchableColumns: ['name', 'description'],
-        defaultSortBy:     'created_at',
-        defaultSortOrder:  'desc'
-    );
-
-    return Workspace::formatPaginatedResponse($paginator, ListResource::class);
-}
 
     /**
      * GET /enums/workspace-statuses
@@ -117,10 +118,10 @@ class WorkspaceController extends KanbanController
     {
         try {
             $workspace = Workspace::create([
-                'name'        => $request->name,
+                'name' => $request->name,
                 'description' => $request->description,
-                'status'      => $request->status,
-                'user_id'     => auth()->id(),
+                'status' => $request->status,
+                'user_id' => auth()->id(),
             ]);
 
             $workspace->load('user');
@@ -179,15 +180,15 @@ class WorkspaceController extends KanbanController
     }
 
     /**
- * GET /workspaces/counts
- *
- * Returns a single object with per-status item counts for the
- * authenticated user. Used by the frontend header stats bar across
- * all three views (table, list, kanban) without firing N requests.
- *
- * Example response:
- *   { "data": { "active": 12, "pending": 4, "on_hold": 1, "completed": 7, "archived": 2 } }
- */
+     * GET /workspaces/counts
+     *
+     * Returns a single object with per-status item counts for the
+     * authenticated user. Used by the frontend header stats bar across
+     * all three views (table, list, kanban) without firing N requests.
+     *
+     * Example response:
+     *   { "data": { "active": 12, "pending": 4, "on_hold": 1, "completed": 7, "archived": 2 } }
+     */
     public function counts(Request $request, WorkspaceFilter $filter)
     {
         $baseQuery = Workspace::query()
@@ -230,10 +231,10 @@ class WorkspaceController extends KanbanController
             $result[$status->value] = [
                 'data' => ListResource::collection($paginator->items()),
                 'meta' => [
-                    'total'        => $paginator->total(),
+                    'total' => $paginator->total(),
                     'current_page' => $paginator->currentPage(),
-                    'last_page'    => $paginator->lastPage(),
-                    'per_page'     => $paginator->perPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
                 ],
             ];
         }

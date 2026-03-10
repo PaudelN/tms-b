@@ -1,4 +1,5 @@
 <?php
+
 use App\Enums\WorkspaceStatus;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;

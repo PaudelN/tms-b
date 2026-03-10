@@ -11,12 +11,12 @@ return new class extends Migration
         Schema::create('workspace_users', function (Blueprint $table) {
             $table->id();
             $table->foreignId('workspace_id')
-                  ->constrained('workspaces')
-                  ->cascadeOnDelete();
+                ->constrained('workspaces')
+                ->cascadeOnDelete();
             $table->foreignId('user_id')
-                  ->nullable() // null until user accepts invite
-                  ->constrained('users')
-                  ->nullOnDelete();
+                ->nullable() // null until user accepts invite
+                ->constrained('users')
+                ->nullOnDelete();
             $table->boolean('is_owner')->default(false);
             $table->string('status')->default('pending');
             $table->uuid('invite_token')->nullable()->unique();

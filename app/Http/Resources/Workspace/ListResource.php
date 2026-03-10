@@ -14,25 +14,25 @@ class ListResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
-            'name'        => $this->name,
-            'slug'        => $this->slug,
+            'id' => $this->id,
+            'name' => $this->name,
+            'slug' => $this->slug,
             'description' => $this->when(
                 $this->description,
-                fn() => \Str::limit($this->description, 100)
+                fn () => \Str::limit($this->description, 100)
             ),
-            'status'      => [
+            'status' => [
                 'value' => $this->status->value,
                 'label' => $this->status->label ?? $this->status->name,
             ],
             'is_archived' => $this->isArchived(),
-            'user'        => $this->whenLoaded('user', fn() => [
-                'id'    => $this->user->id,
-                'name'  => $this->user->name,
+            'user' => $this->whenLoaded('user', fn () => [
+                'id' => $this->user->id,
+                'name' => $this->user->name,
                 'email' => $this->user->email,
             ]),
-            'created_at'  => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at'  => $this->updated_at->diffForHumans(),
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at->diffForHumans(),
         ];
     }
 }

@@ -20,8 +20,9 @@ class WorkspaceSeeder extends Seeder
         $admin = User::where('email', 'admin@example.com')->first();
         $testUser = User::where('email', 'test@example.com')->first();
 
-        if (!$admin || !$testUser) {
+        if (! $admin || ! $testUser) {
             $this->command->error('Please run UserSeeder first!');
+
             return;
         }
 
@@ -37,7 +38,7 @@ class WorkspaceSeeder extends Seeder
         foreach ($adminWorkspaceNames as $baseName) {
             for ($i = 1; $i <= 10; $i++) {
                 Workspace::factory()->create([
-                    'name' => "$baseName #$i " . Str::random(5),
+                    'name' => "$baseName #$i ".Str::random(5),
                     'user_id' => $admin->id,
                     'status' => 'active',
                 ]);
@@ -47,7 +48,7 @@ class WorkspaceSeeder extends Seeder
         // --- 2. Archived workspaces for admin ---
         for ($i = 1; $i <= 2; $i++) {
             Workspace::factory()->create([
-                'name' => "Archived Workspace #$i " . Str::random(5),
+                'name' => "Archived Workspace #$i ".Str::random(5),
                 'user_id' => $admin->id,
                 'status' => 'archived',
             ]);
@@ -63,7 +64,7 @@ class WorkspaceSeeder extends Seeder
         foreach ($testWorkspaceNames as $baseName) {
             for ($i = 1; $i <= 5; $i++) {
                 Workspace::factory()->create([
-                    'name' => "$baseName #$i " . Str::random(5),
+                    'name' => "$baseName #$i ".Str::random(5),
                     'user_id' => $testUser->id,
                     'status' => 'active',
                 ]);
@@ -77,7 +78,7 @@ class WorkspaceSeeder extends Seeder
             $count = rand(5, 15); // each other user gets 5–15 workspaces
             for ($i = 1; $i <= $count; $i++) {
                 Workspace::factory()->create([
-                    'name' => "Random Workspace #$i " . Str::random(5),
+                    'name' => "Random Workspace #$i ".Str::random(5),
                     'user_id' => $user->id,
                     'status' => 'active',
                 ]);

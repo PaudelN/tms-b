@@ -71,18 +71,18 @@ class KanbanOrder extends Model
      */
     public static function setOrder(
         string $entityType,
-        int    $entityId,
+        int $entityId,
         string $stageValue,
-        int    $sortOrder
+        int $sortOrder
     ): void {
         static::updateOrCreate(
             [
                 'entity_type' => $entityType,
-                'entity_id'   => $entityId,
+                'entity_id' => $entityId,
             ],
             [
                 'stage_value' => $stageValue,
-                'sort_order'  => $sortOrder,
+                'sort_order' => $sortOrder,
             ]
         );
     }

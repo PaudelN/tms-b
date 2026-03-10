@@ -164,7 +164,7 @@ abstract class BaseFilter
             return;
         }
 
-        $query->whereHas('tags', fn($q) => $q->whereIn('id', $ids));
+        $query->whereHas('tags', fn ($q) => $q->whereIn('id', $ids));
     }
 
     /**

@@ -4,7 +4,6 @@ namespace App\Helpers;
 
 use Exception;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -62,14 +61,14 @@ class ApiResponse
         $context = [];
 
         if ($user) {
-            $context['User'] = $user->name . ' (' . $user->email . ')';
+            $context['User'] = $user->name.' ('.$user->email.')';
         }
 
         $context['Error Message'] = $exception->getMessage();
         $context['File'] = "{$exception->getFile()} ({$exception->getLine()})";
         $context['Trace'] = $exception->getTraceAsString();
 
-        Log::error("Exception occurred", $context);
+        Log::error('Exception occurred', $context);
 
         return response()->json([
             'status' => 'error',

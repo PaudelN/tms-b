@@ -17,7 +17,8 @@ class WorkspaceFactory extends Factory
     public function definition(): array
     {
 
-     $name = fake()->words(rand(2, 4), true);
+        $name = fake()->words(rand(2, 4), true);
+
         return [
             'name' => $name,
             'slug' => Str::slug($name),

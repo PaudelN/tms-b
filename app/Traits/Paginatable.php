@@ -51,7 +51,7 @@ trait Paginatable
         $excludedParams = ['page', 'per_page', 'search', 'sort_by', 'sort_order'];
 
         foreach ($request->all() as $key => $value) {
-            if (!in_array($key, $excludedParams) && !empty($value)) {
+            if (! in_array($key, $excludedParams) && ! empty($value)) {
                 $query->where($key, $value);
             }
         }
