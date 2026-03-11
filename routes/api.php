@@ -15,9 +15,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── Workspaces ────────────────────────────────────────────────────────────
     // Static segments BEFORE apiResource so {workspace} doesn't swallow them.
 
-    Route::get('workspaces/counts',          [WorkspaceController::class, 'counts']);
-    Route::get('workspaces/kanban/board',    [WorkspaceController::class, 'board']);
-    Route::post('workspaces/kanban/move',    [WorkspaceController::class, 'kanbanMove']);
+    Route::get('workspaces/counts', [WorkspaceController::class, 'counts']);
+    Route::get('workspaces/kanban/board', [WorkspaceController::class, 'board']);
+    Route::post('workspaces/kanban/move', [WorkspaceController::class, 'kanbanMove']);
     Route::post('workspaces/kanban/reorder', [WorkspaceController::class, 'kanbanReorder']);
 
     Route::apiResource('workspaces', WorkspaceController::class);
@@ -53,11 +53,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //   ✔ Matches Linear / ClickUp API design
 
     Route::prefix('workspaces/{workspace}/projects')->group(function () {
-        Route::get('counts',          [ProjectController::class, 'counts'])
+        Route::get('counts', [ProjectController::class, 'counts'])
             ->name('workspaces.projects.counts');
-        Route::get('kanban/board',    [ProjectController::class, 'board'])
+        Route::get('kanban/board', [ProjectController::class, 'board'])
             ->name('workspaces.projects.kanban.board');
-        Route::post('kanban/move',    [ProjectController::class, 'kanbanMove'])
+        Route::post('kanban/move', [ProjectController::class, 'kanbanMove'])
             ->name('workspaces.projects.kanban.move');
         Route::post('kanban/reorder', [ProjectController::class, 'kanbanReorder'])
             ->name('workspaces.projects.kanban.reorder');
@@ -65,6 +65,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::apiResource('workspaces.projects', ProjectController::class)
         ->shallow();
+
+    Route::post('projects/{project}/update', [ProjectController::class, 'update'])
+        ->name('projects.update.post');
     //  Registers:
     //    GET    /workspaces/{workspace}/projects      → index
     //    POST   /workspaces/{workspace}/projects      → store
@@ -72,7 +75,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //    PATCH  /projects/{project}                   → update  ← shallow
     //    DELETE /projects/{project}                   → destroy ← shallow
 
-    Route::get('enums/project-statuses',     [ProjectController::class, 'statuses']);
+    Route::get('enums/project-statuses', [ProjectController::class, 'statuses']);
     Route::get('enums/project-visibilities', [ProjectController::class, 'visibilities']);
 
     // ── Users ─────────────────────────────────────────────────────────────────
