@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PipelineController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Models\User;
@@ -42,9 +43,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //     POST   /workspaces/{workspace}/projects/kanban/reorder → kanbanReorder
     //
     //   Flat / shallow (only project ID needed — no workspace in URL):
-    //     GET    /projects/{project}   → show
-    //     PATCH  /projects/{project}   → update
-    //     DELETE /projects/{project}   → destroy
+    //     GET    /projects/{project}              → show
+    //     POST   /projects/{project}/update       → update  ← POST (CORS-safe)
+    //     DELETE /projects/{project}              → destroy
     //
     // Benefits:
     //   ✔ No param explosion on show/update/destroy — frontend holds project.id
@@ -65,9 +66,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::apiResource('workspaces.projects', ProjectController::class)
         ->shallow();
-
-    Route::post('projects/{project}/update', [ProjectController::class, 'update'])
-        ->name('projects.update.post');
     //  Registers:
     //    GET    /workspaces/{workspace}/projects      → index
     //    POST   /workspaces/{workspace}/projects      → store
@@ -75,8 +73,51 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //    PATCH  /projects/{project}                   → update  ← shallow
     //    DELETE /projects/{project}                   → destroy ← shallow
 
+    // POST alias for update — avoids CORS preflight in browser clients
+    Route::post('projects/{project}/update', [ProjectController::class, 'update'])
+        ->name('projects.update.post');
+
     Route::get('enums/project-statuses', [ProjectController::class, 'statuses']);
     Route::get('enums/project-visibilities', [ProjectController::class, 'visibilities']);
+
+    // ── Pipelines ─────────────────────────────────────────────────────────────
+    //
+    // Hierarchy: Workspace → Project → Pipeline → PipelineStage (next phase)
+    //
+    // Shallow routing strategy:
+    //
+    //   Nested  (requires project context — creation & listing):
+    //     GET    /projects/{project}/pipelines         → index
+    //     POST   /projects/{project}/pipelines         → store
+    //     GET    /projects/{project}/pipelines/counts  → counts
+    //
+    //   Flat / shallow (only pipeline ID needed — no project in URL):
+    //     GET    /pipelines/{pipeline}                 → show
+    //     POST   /pipelines/{pipeline}/update          → update  ← POST (CORS-safe)
+    //     DELETE /pipelines/{pipeline}                 → destroy
+    //
+    // Note: No kanban routes — pipelines use list/table view only.
+
+    // Static nested routes BEFORE apiResource to avoid {pipeline} swallowing them
+    Route::prefix('projects/{project}/pipelines')->group(function () {
+        Route::get('counts', [PipelineController::class, 'counts'])
+            ->name('projects.pipelines.counts');
+    });
+
+    Route::apiResource('projects.pipelines', PipelineController::class)
+        ->shallow();
+    //  Registers:
+    //    GET    /projects/{project}/pipelines   → index
+    //    POST   /projects/{project}/pipelines   → store
+    //    GET    /pipelines/{pipeline}            → show    ← shallow
+    //    PATCH  /pipelines/{pipeline}            → update  ← shallow
+    //    DELETE /pipelines/{pipeline}            → destroy ← shallow
+
+    // POST alias for update — avoids CORS preflight in browser clients
+    Route::post('pipelines/{pipeline}/update', [PipelineController::class, 'update'])
+        ->name('pipelines.update.post');
+
+    Route::get('enums/pipeline-statuses', [PipelineController::class, 'statuses']);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     Route::get('/users', function () {

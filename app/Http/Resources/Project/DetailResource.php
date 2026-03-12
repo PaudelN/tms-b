@@ -2,17 +2,22 @@
 
 namespace App\Http\Resources\Project;
 
+use App\Http\Resources\Pipeline\ListResource as PipelineListResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Full shape for the project detail / settings page.
+ *
+ * Eager-loads expected from the controller:
+ *   $project->load('creator', 'workspace', 'activePipelines')
+ *   $project->loadCount(['pipelines', 'pipelines as active_pipelines_count'])
+ *
+ * The 'activePipelines' relation uses withCount('stages') so each pipeline
+ * row already knows how many stages it has.
+ */
 class DetailResource extends JsonResource
 {
-    /**
-     * Full shape for the project detail / settings page.
-     * Eager-loaded in the controller via:
-     *   $project->load('creator', 'workspace')
-     *   $project->loadCount('tasks')
-     */
     public function toArray(Request $request): array
     {
         return [
@@ -51,7 +56,32 @@ class DetailResource extends JsonResource
                 'email' => $this->creator->email,
             ]),
 
-            // Counts — only present when withCount() was called
+            // ── Pipelines ─────────────────────────────────────────────────
+            //
+            // Only active pipelines are returned here (loaded via the
+            // activePipelines relationship). This keeps the detail payload
+            // focused — the frontend uses this list for:
+            //   • the project sidebar pipeline switcher
+            //   • task-creation pipeline dropdown
+            //   • pipeline count badge on project cards
+            //
+            // Each pipeline row uses PipelineListResource which includes
+            // stages_count (populated via withCount('stages') in the controller).
+            //
+            // If you need ALL pipelines (e.g. the admin settings page), call
+            // GET /projects/{project}/pipelines directly — that endpoint is
+            // filterable and paginated.
+
+            'pipelines' => $this->whenLoaded(
+                'activePipelines',
+                fn () => PipelineListResource::collection($this->activePipelines)
+            ),
+
+            // Counts — quick summary numbers for the detail page header
+            'pipelines_count'        => $this->whenCounted('pipelines'),
+            'active_pipelines_count' => $this->whenCounted('active_pipelines_count'),
+
+            // Task / member counts — only present when withCount() was called
             'tasks_count'   => $this->whenCounted('tasks'),
             'members_count' => $this->whenCounted('members'),
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Contracts\KanbanEntity;
+use App\Enums\PipelineStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectVisibility;
 use App\Traits\Filterable;
@@ -11,6 +12,7 @@ use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
@@ -67,6 +69,26 @@ class Project extends Model implements KanbanEntity
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * All pipelines belonging to this project.
+     * Ordered by creation so the frontend renders them consistently.
+     */
+    public function pipelines(): HasMany
+    {
+        return $this->hasMany(Pipeline::class);
+    }
+
+    /**
+     * Only active pipelines — useful for task-creation dropdowns
+     * where inactive pipelines should not be selectable.
+     */
+    public function activePipelines(): HasMany
+    {
+        return $this->hasMany(Pipeline::class)
+            ->where('status', PipelineStatus::ACTIVE)
+            ->orderBy('created_at');
+    }
+
     // ── Scopes ────────────────────────────────────────────────────────────────
 
     public function scopeForWorkspace($query, int $workspaceId)
@@ -93,7 +115,7 @@ class Project extends Model implements KanbanEntity
 
     public function kanbanAfterMove(string $field, mixed $newStageValue): void
     {
-        // Example: WorkspaceStageChanged::dispatch($this, $newStageValue);
+        // Example: ProjectStageChanged::dispatch($this, $newStageValue);
     }
 
     public function kanbanBeforeMove(mixed $newStageValue): void

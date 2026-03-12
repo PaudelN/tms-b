@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PipelineStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectVisibility;
 use App\Filters\ProjectFilter;
@@ -33,16 +34,15 @@ use Illuminate\Http\Request;
  *     POST /workspaces/{workspace}/projects          → store()
  *
  *   SHALLOW (workspace is NOT in the URL → only {project} is bound):
- *     GET    /projects/{project}  → show()
- *     PATCH  /projects/{project}  → update()
- *     DELETE /projects/{project}  → destroy()
+ *     GET    /projects/{project}         → show()
+ *     POST   /projects/{project}/update  → update()   ← POST (CORS-safe)
+ *     DELETE /projects/{project}         → destroy()
  *
  * ⚠️  CRITICAL: shallow actions (show / update / destroy) must NOT
  *     type-hint `Workspace $workspace`.  When Laravel's route-model
  *     binding sees that type-hint but finds no {workspace} segment in
  *     the URL it throws NotFoundHttpException (404) before your code
- *     runs.  This was the root cause of the 404 errors on project
- *     detail and edit pages.
+ *     runs.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 class ProjectController extends KanbanController
@@ -73,6 +73,8 @@ class ProjectController extends KanbanController
      * GET /workspaces/{workspace}/projects
      *
      * Unified fetch for table / list / kanban-column mode.
+     * Pipelines are intentionally excluded here — this is a list row,
+     * not a detail page. Use show() for the full project with pipelines.
      *
      * Query params:
      *   ?status=draft|in_progress|on_hold|cancelled|completed
@@ -119,11 +121,6 @@ class ProjectController extends KanbanController
 
     /**
      * GET /workspaces/{workspace}/projects/counts
-     *
-     * Per-status counts scoped to the workspace.
-     * Used by the index page header stats bar.
-     *
-     * Response: { "data": { "draft": 3, "in_progress": 8, ... } }
      */
     public function counts(Request $request, Workspace $workspace, ProjectFilter $filter)
     {
@@ -145,9 +142,6 @@ class ProjectController extends KanbanController
 
     /**
      * GET /workspaces/{workspace}/projects/kanban/board
-     *
-     * Returns ALL status columns with paginated projects in one call.
-     * Used by UiKanban's boardFetchFn — one request, all columns.
      */
     public function board(Request $request, Workspace $workspace, ProjectFilter $filter)
     {
@@ -212,33 +206,53 @@ class ProjectController extends KanbanController
 
     // ─────────────────────────────────────────────────────────────────────────
     // SHALLOW actions — {workspace} is NOT in the URL, only {project} is bound
-    //
-    // Do NOT add `Workspace $workspace` to these signatures.
-    // Doing so causes Laravel route-model binding to throw 404
-    // because there is no {workspace} segment to resolve against.
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
      * GET /projects/{project}    ← shallow
+     *
+     * Full project detail with pipelines list (only active pipelines
+     * are included — the frontend uses these to populate task creation
+     * dropdowns and the project sidebar).
+     *
+     * Pipelines are loaded via the activePipelines relationship so
+     * inactive pipelines don't pollute the detail view. If the settings
+     * page needs all pipelines regardless of status, pass ?with=all_pipelines
+     * as a future extension — for now active-only is the sane default.
      */
     public function show(Project $project)
     {
-        $project->load('creator', 'workspace');
+        $project->load([
+            'creator',
+            'workspace',
+            // Load only active pipelines for the detail view.
+            // Each pipeline also carries its stages count so the
+            // frontend can show "3 stages" without a second request.
+            'activePipelines',
+            // 'activePipelines' => fn ($q) => $q->withCount('stages'),
+        ]);
+
+        $project->loadCount(['pipelines', 'pipelines as active_pipelines_count' => fn ($q) => $q->where('status', PipelineStatus::ACTIVE)]);
 
         return ApiResponse::successData(new DetailResource($project));
     }
 
     /**
-     * PATCH /projects/{project}  ← shallow
-     *
-     * Note: Laravel's ->shallow() registers PATCH, not PUT.
-     * The frontend store must use axios.patch(), not axios.put().
+     * POST /projects/{project}/update  ← shallow, POST (CORS-safe)
      */
     public function update(UpdateRequest $request, Project $project)
     {
         try {
             $project->update($request->validated());
-            $project->load('creator', 'workspace');
+
+            $project->load([
+                'creator',
+                'workspace',
+                'activePipelines',
+                // 'activePipelines' => fn ($q) => $q->withCount('stages'),
+            ]);
+
+            $project->loadCount(['pipelines', 'pipelines as active_pipelines_count' => fn ($q) => $q->where('status', \App\Enums\PipelineStatus::ACTIVE)]);
 
             return ApiResponse::successData(
                 new DetailResource($project),
@@ -266,17 +280,11 @@ class ProjectController extends KanbanController
     // Enum endpoints — no model binding
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * GET /enums/project-statuses
-     */
     public function statuses()
     {
         return ApiResponse::successData(ProjectStatus::toArray());
     }
 
-    /**
-     * GET /enums/project-visibilities
-     */
     public function visibilities()
     {
         return ApiResponse::successData(ProjectVisibility::toArray());
