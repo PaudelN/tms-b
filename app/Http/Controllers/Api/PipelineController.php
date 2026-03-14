@@ -69,10 +69,10 @@ class PipelineController extends Controller
             ->filter($filter)
             ->tap(fn ($q) => $filter->cleanRequest())
             ->paginateWithFilters(
-                request:           $request,
+                request: $request,
                 searchableColumns: ['name', 'description'],
-                defaultSortBy:     'created_at',
-                defaultSortOrder:  'desc',
+                defaultSortBy: 'created_at',
+                defaultSortOrder: 'desc',
             );
 
         return Pipeline::formatPaginatedResponse($paginator, ListResource::class);
@@ -115,12 +115,12 @@ class PipelineController extends Controller
     {
         try {
             $pipeline = Pipeline::create([
-                'project_id'  => $project->id,
-                'created_by'  => auth()->id(),
-                'name'        => $request->name,
+                'project_id' => $project->id,
+                'created_by' => auth()->id(),
+                'name' => $request->name,
                 'description' => $request->description,
-                'status'      => $request->status,
-                'extras'      => $request->extras,
+                'status' => $request->status,
+                'extras' => $request->extras,
             ]);
 
             $pipeline->load('creator', 'project', 'project.workspace');
@@ -145,10 +145,11 @@ class PipelineController extends Controller
     /**
      * GET /pipelines/{pipeline}    ← shallow
      */
+    // PipelineController.php — show() only, rest unchanged
     public function show(Pipeline $pipeline)
     {
-        $pipeline->load('creator', 'project', 'project.workspace');
-        // $pipeline->loadCount('stages');
+        $pipeline->loadCount('stages');
+        $pipeline->load('creator', 'project', 'project.workspace', 'stages');
 
         return ApiResponse::successData(new DetailResource($pipeline));
     }
@@ -181,6 +182,7 @@ class PipelineController extends Controller
     {
         try {
             $pipeline->delete();
+
             return ApiResponse::success('Pipeline deleted successfully');
         } catch (\Exception $e) {
             return ApiResponse::exception($e, 'Failed to delete pipeline');

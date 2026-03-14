@@ -2,39 +2,42 @@
 
 namespace App\Models;
 
-use App\Enums\PipelineStatus;
+use App\Enums\PipelineStageStatus;
 use App\Traits\Filterable;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
-class Pipeline extends Model
+class PipelineStage extends Model
 {
     use Filterable, HasFactory, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
-        'project_id',
+        'pipeline_id',
         'created_by',
         'name',
         'slug',
-        'description',
+        'display_name',
+        'display_order',
         'status',
+        'color',
+        'wip_limit',
         'extras',
     ];
 
     protected $casts = [
-        'status' => PipelineStatus::class,
-        'extras' => 'array',
+        'status'        => PipelineStageStatus::class,
+        'extras'        => 'array',
+        'display_order' => 'integer',
+        'wip_limit'     => 'integer',
     ];
 
     // ── Slug ──────────────────────────────────────────────────────────────────
-    // Slug is unique per project (enforced by the composite DB unique index).
-    // spatie/sluggable handles collision suffixes (-1, -2 …) automatically.
+    // Unique per pipeline — composite DB unique index is the hard guard.
 
     public function getSlugOptions(): SlugOptions
     {
@@ -43,14 +46,14 @@ class Pipeline extends Model
             ->saveSlugsTo('slug')
             ->doNotGenerateSlugsOnUpdate()
             ->preventOverwrite()
-            ->extraScope(fn ($query) => $query->where('project_id', $this->project_id));
+            ->extraScope(fn ($query) => $query->where('pipeline_id', $this->pipeline_id));
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────
 
-    public function project(): BelongsTo
+    public function pipeline(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Pipeline::class);
     }
 
     public function creator(): BelongsTo
@@ -58,51 +61,61 @@ class Pipeline extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /**
-     * Pipeline stages — will be implemented in the next CRUD phase.
-     * Defined here so eager-loads can already reference the relationship.
-     */
-    public function stages(): HasMany
-    {
-        return $this->hasMany(PipelineStage::class)->orderBy('display_order');
-    }
+    // Uncomment when Task model exists:
+    // public function tasks(): HasMany
+    // {
+    //     return $this->hasMany(Task::class)->orderBy('sort_order');
+    // }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
 
-    public function scopeForProject($query, int $projectId)
+    public function scopeForPipeline($query, int $pipelineId)
     {
-        return $query->where('project_id', $projectId);
+        return $query->where('pipeline_id', $pipelineId);
+    }
+
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('display_order');
     }
 
     public function scopeActive($query)
     {
-        return $query->where('status', PipelineStatus::ACTIVE);
-    }
-
-    public function scopeInactive($query)
-    {
-        return $query->where('status', PipelineStatus::INACTIVE);
+        return $query->where('status', PipelineStageStatus::ACTIVE);
     }
 
     // ── Computed helpers ──────────────────────────────────────────────────────
 
     public function isActive(): bool
     {
-        return $this->status === PipelineStatus::ACTIVE;
+        return $this->status === PipelineStageStatus::ACTIVE;
     }
 
     public function isInactive(): bool
     {
-        return $this->status === PipelineStatus::INACTIVE;
+        return $this->status === PipelineStageStatus::INACTIVE;
+    }
+
+    public function hasWipLimit(): bool
+    {
+        return $this->wip_limit !== null;
+    }
+
+    /**
+     * The label rendered in the UI — display_name takes priority over name.
+     */
+    public function displayLabel(): string
+    {
+        return $this->display_name ?? $this->name;
     }
 
     public function activate(): bool
     {
-        return $this->update(['status' => PipelineStatus::ACTIVE]);
+        return $this->update(['status' => PipelineStageStatus::ACTIVE]);
     }
 
     public function deactivate(): bool
     {
-        return $this->update(['status' => PipelineStatus::INACTIVE]);
+        return $this->update(['status' => PipelineStageStatus::INACTIVE]);
     }
 }

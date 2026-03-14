@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PipelineController;
+use App\Http\Controllers\Api\PipelineStageController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Models\User;
@@ -118,6 +119,31 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->name('pipelines.update.post');
 
     Route::get('enums/pipeline-statuses', [PipelineController::class, 'statuses']);
+
+    // Pipeline stages
+
+    Route::prefix('pipelines/{pipeline}/stages')->group(function () {
+        Route::get('counts', [PipelineStageController::class, 'counts'])
+            ->name('pipelines.stages.counts');
+        Route::post('reorder', [PipelineStageController::class, 'reorder'])
+            ->name('pipelines.stages.reorder');
+    });
+
+    Route::apiResource('pipelines.stages', PipelineStageController::class)
+        ->shallow()
+        ->except(['update']);
+    //  Registers:
+    //    GET    /pipelines/{pipeline}/stages   → index
+    //    POST   /pipelines/{pipeline}/stages   → store
+    //    GET    /stages/{stage}                → show    ← shallow
+    //    PATCH  /stages/{stage}                → update  ← shallow
+    //    DELETE /stages/{stage}                → destroy ← shallow
+
+    // POST alias for update — avoids CORS preflight in browser clients
+    Route::post('stages/{stage}/update', [PipelineStageController::class, 'update'])
+        ->name('stages.update.post');
+
+    Route::get('enums/pipeline-stage-statuses', [PipelineStageController::class, 'statuses']);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     Route::get('/users', function () {

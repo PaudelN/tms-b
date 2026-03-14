@@ -9,9 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Full shape for the pipeline detail / settings page.
  *
  * Eager-loads expected from the controller:
- *   $pipeline->load('creator', 'project', 'project.workspace')
- *
- * Optional:
+ *   $pipeline->load('creator', 'project', 'project.workspace', 'stages')
  *   $pipeline->loadCount('stages')
  */
 class DetailResource extends JsonResource
@@ -41,7 +39,6 @@ class DetailResource extends JsonResource
                 'name' => $this->project->name,
                 'slug' => $this->project->slug,
 
-                // Workspace nested inside project — loaded via project.workspace
                 'workspace' => $this->when(
                     $this->project->relationLoaded('workspace'),
                     fn () => [
@@ -59,10 +56,31 @@ class DetailResource extends JsonResource
                 'email' => $this->creator->email,
             ]),
 
-            // Counts — only present when withCount() was called
-            // 'stages_count' => $this->whenCounted('stages'),
+            // Stages — lightweight list ordered by display_order
+            // Loaded only when the controller calls ->load('stages')
+            'stages' => $this->whenLoaded('stages', fn () =>
+                $this->stages->map(fn ($stage) => [
+                    'id'            => $stage->id,
+                    'name'          => $stage->name,
+                    'slug'          => $stage->slug,
+                    'display_name'  => $stage->display_name,
+                    'display_label' => $stage->displayLabel(),
+                    'display_order' => $stage->display_order,
+                    'color'         => $stage->color,
+                    'wip_limit'     => $stage->wip_limit,
+                    'is_active'     => $stage->isActive(),
+                    'status' => [
+                        'value' => $stage->status->value,
+                        'label' => $stage->status->label(),
+                        'dot'   => $stage->status->dotClass(),
+                        'badge' => $stage->status->badgeClass(),
+                    ],
+                ])
+            ),
 
-            // Computed state flags — frontend uses to show/hide actions
+            // Stage count — present when withCount() or loadCount() was called
+            'stages_count' => $this->whenCounted('stages'),
+
             'is_active'   => $this->isActive(),
             'is_inactive' => $this->isInactive(),
 
