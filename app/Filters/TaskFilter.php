@@ -2,48 +2,59 @@
 
 namespace App\Filters;
 
+use App\Filters\BaseFilter;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * TaskFilter
- *
- * Inherited from BaseFilter for free:
- *   ?creator=1
- *   ?created_from=2024-01-01
- *   ?created_to=2024-12-31
- *   ?tags[]=1&tags[]=2
- *   ?sort=asc|desc
- *
- * Task-specific filters:
- *   ?status[]=todo&status[]=in_progress
- *   ?priority[]=high&priority[]=critical
- *   ?assigned_to=5
+ * Handles all filterable query params for tasks.
+ * Applied via ->filter($filter) from the Filterable trait.
  */
 class TaskFilter extends BaseFilter
 {
-    /**
-     * ?status[]=todo&status[]=in_progress
-     * or ?status=todo  (single value also works)
-     */
-    protected function status(Builder $query, mixed $value): void
-    {
-        $query->whereIn('status', (array) $value);
-    }
+    // ── Filter handlers — method name = query param name ──────────────────────
 
-    /**
-     * ?priority[]=high&priority[]=critical
-     */
     protected function priority(Builder $query, mixed $value): void
     {
-        $query->whereIn('priority', (array) $value);
+        $values = is_array($value) ? $value : [$value];
+        $query->whereIn('priority', $values);
     }
 
-    /**
-     * ?assigned_to=5
-     * Filter tasks by their assignee.
-     */
-    protected function assigned_to(Builder $query, mixed $value): void
+    protected function stage(Builder $query, mixed $value): void
     {
-        $query->where('assigned_to', $value);
+        $values = is_array($value) ? $value : [$value];
+        $query->whereIn('pipeline_stage_id', $values);
+    }
+
+    protected function creator(Builder $query, mixed $value): void
+    {
+        $values = is_array($value) ? $value : [$value];
+        $query->whereIn('created_by', $values);
+    }
+
+    protected function due_from(Builder $query, mixed $value): void
+    {
+        $query->whereDate('due_date', '>=', $value);
+    }
+
+    protected function due_to(Builder $query, mixed $value): void
+    {
+        $query->whereDate('due_date', '<=', $value);
+    }
+
+    protected function overdue(Builder $query, mixed $value): void
+    {
+        if (filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
+            $query->whereNotNull('due_date')->where('due_date', '<', now()->toDateString());
+        }
+    }
+
+    protected function created_from(Builder $query, mixed $value): void
+    {
+        $query->whereDate('created_at', '>=', $value);
+    }
+
+    protected function created_to(Builder $query, mixed $value): void
+    {
+        $query->whereDate('created_at', '<=', $value);
     }
 }

@@ -78,6 +78,11 @@ class Project extends Model implements KanbanEntity
         return $this->hasMany(Pipeline::class);
     }
 
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'project_id');
+    }
+
     /**
      * Only active pipelines — useful for task-creation dropdowns
      * where inactive pipelines should not be selectable.

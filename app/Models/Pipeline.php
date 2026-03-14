@@ -67,6 +67,16 @@ class Pipeline extends Model
         return $this->hasMany(PipelineStage::class)->orderBy('display_order');
     }
 
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'pipeline_id')->orderBy('sort_order');
+    }
+
+    public function tasksCount(): int
+    {
+        return $this->tasks()->count();
+    }
+
     // ── Scopes ────────────────────────────────────────────────────────────────
 
     public function scopeForProject($query, int $projectId)

@@ -8,6 +8,7 @@ use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
@@ -30,10 +31,10 @@ class PipelineStage extends Model
     ];
 
     protected $casts = [
-        'status'        => PipelineStageStatus::class,
-        'extras'        => 'array',
+        'status' => PipelineStageStatus::class,
+        'extras' => 'array',
         'display_order' => 'integer',
-        'wip_limit'     => 'integer',
+        'wip_limit' => 'integer',
     ];
 
     // ── Slug ──────────────────────────────────────────────────────────────────
@@ -59,6 +60,17 @@ class PipelineStage extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'pipeline_stage_id')->orderBy('sort_order');
+    }
+
+    // Prevent deleting a stage that still has active tasks
+    public function canBeDeleted(): bool
+    {
+        return ! $this->tasks()->exists();
     }
 
     // Uncomment when Task model exists:
