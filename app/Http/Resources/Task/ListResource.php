@@ -39,7 +39,7 @@ class ListResource extends JsonResource
             'pipeline_stage_id' => $this->pipeline_stage_id,
             'project_id'        => $this->project_id,
 
-            'due_date'   => $this->due_date?->format('Y-m-d'),
+            'due_date'   => $this->due_date ? $this->due_date->format('Y-m-d') : null,
             'is_overdue' => $this->isOverdue(),
             'is_due_today' => $this->isDueToday(),
 
@@ -49,8 +49,8 @@ class ListResource extends JsonResource
             ]),
 
             'sort_order' => $this->sort_order,
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->diffForHumans(),
+            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $this->updated_at ? $this->updated_at->diffForHumans() : null,
         ];
     }
 }

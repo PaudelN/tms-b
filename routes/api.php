@@ -65,41 +65,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('enums/pipeline-stage-statuses', [PipelineStageController::class, 'statuses']);
 
     // ── Tasks ─────────────────────────────────────────────────────────────────
-    //
-    // Hierarchy: Pipeline → PipelineStage (column) → Task (card)
-    //
-    // Nested (pipeline context required):
-    //   GET  /pipelines/{pipeline}/tasks              → index   (UiTable + UiList + UiKanban)
-    //   POST /pipelines/{pipeline}/tasks              → store
-    //   POST /pipelines/{pipeline}/tasks/kanban/move    → kanbanMove   (KanbanController)
-    //   POST /pipelines/{pipeline}/tasks/kanban/reorder → kanbanReorder (KanbanController)
-    //
-    // Shallow (task ID only):
-    //   GET    /tasks/{task}          → show
-    //   POST   /tasks/{task}/update   → update
-    //   DELETE /tasks/{task}          → destroy
-    //
-    // Enum:
-    //   GET /enums/task-priorities
 
     Route::prefix('pipelines/{pipeline}/tasks')->group(function () {
-        // Static segments BEFORE apiResource so {task} doesn't swallow them
         Route::post('kanban/move', [TaskController::class, 'kanbanMove'])->name('pipelines.tasks.kanban.move');
         Route::post('kanban/reorder', [TaskController::class, 'kanbanReorder'])->name('pipelines.tasks.kanban.reorder');
     });
 
+    // !! MUST be before apiResource — otherwise GET /tasks/{task} catches "my" as a task ID !!
+    Route::get('tasks/my', [TaskController::class, 'myTasks'])->name('tasks.my');
+    Route::get('tasks/all', [TaskController::class, 'allTasks'])->name('tasks.all');
+
+    Route::get('enums/task-priorities', [TaskController::class, 'priorities']);
+
     Route::apiResource('pipelines.tasks', TaskController::class)
         ->shallow()
         ->except(['update']);
-    //  Registers:
-    //    GET    /pipelines/{pipeline}/tasks   → index
-    //    POST   /pipelines/{pipeline}/tasks   → store
-    //    GET    /tasks/{task}                 → show    ← shallow
-    //    PATCH  /tasks/{task}                 → update  ← shallow (use POST alias below)
-    //    DELETE /tasks/{task}                 → destroy ← shallow
 
     Route::post('tasks/{task}/update', [TaskController::class, 'update'])->name('tasks.update.post');
-    Route::get('enums/task-priorities', [TaskController::class, 'priorities']);
 
     // ── Users ─────────────────────────────────────────────────────────────────
     Route::get('/users', function () {

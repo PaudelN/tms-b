@@ -44,8 +44,8 @@ class ListResource extends JsonResource
             'is_active'   => $this->isActive(),
             'is_inactive' => $this->isInactive(),
 
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->diffForHumans(),
+            'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $this->updated_at ? $this->updated_at->diffForHumans() : null,
         ];
     }
 }

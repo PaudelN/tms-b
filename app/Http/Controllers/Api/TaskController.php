@@ -184,4 +184,43 @@ class TaskController extends KanbanController
     {
         return ApiResponse::successData(TaskPriority::toArray());
     }
+
+    public function myTasks(Request $request, TaskFilter $filter)
+    {
+        $userId = auth()->id();
+
+        $baseQuery = Task::query()
+            ->where('created_by', $userId)
+            ->with(['creator', 'stage', 'pipeline', 'project'])
+            ->filter($filter);
+
+        $filter->cleanRequest();
+
+        $paginator = $baseQuery->paginateWithFilters(
+            request: $request,
+            searchableColumns: ['title', 'description', 'task_number'],
+            defaultSortBy: 'due_date',
+            defaultSortOrder: 'asc',
+        );
+
+        return Task::formatPaginatedResponse($paginator, ListResource::class);
+    }
+
+    public function allTasks(Request $request, TaskFilter $filter)
+    {
+        $baseQuery = Task::query()
+            ->with(['creator', 'stage', 'pipeline', 'project'])
+            ->filter($filter);
+
+        $filter->cleanRequest();
+
+        $paginator = $baseQuery->paginateWithFilters(
+            request: $request,
+            searchableColumns: ['title', 'description', 'task_number'],
+            defaultSortBy: 'created_at',
+            defaultSortOrder: 'desc',
+        );
+
+        return Task::formatPaginatedResponse($paginator, ListResource::class);
+    }
 }
