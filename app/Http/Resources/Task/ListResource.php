@@ -10,9 +10,9 @@ class ListResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
+            'id' => $this->id,
             'task_number' => $this->task_number,
-            'title'       => $this->title,
+            'title' => $this->title,
             'description' => $this->when(
                 $this->description,
                 fn () => \Str::limit($this->description, 120)
@@ -23,28 +23,37 @@ class ListResource extends JsonResource
                 'value' => $this->priority->value,
                 'label' => $this->priority->label(),
                 'color' => $this->priority->color(),
-                'dot'   => $this->priority->dot(),
+                'dot' => $this->priority->dot(),
                 'badge' => $this->priority->badge(),
             ],
 
             // Stage — id is the kanban column key on the frontend (String(stage.id))
             'stage' => $this->whenLoaded('stage', fn () => [
-                'id'            => $this->stage->id,
-                'name'          => $this->stage->name,
+                'id' => $this->stage->id,
+                'name' => $this->stage->name,
                 'display_label' => $this->stage->display_label,
-                'color'         => $this->stage->color,
+                'color' => $this->stage->color,
             ]),
 
-            'pipeline_id'       => $this->pipeline_id,
-            'pipeline_stage_id' => $this->pipeline_stage_id,
-            'project_id'        => $this->project_id,
+            'pipeline' => $this->whenLoaded('pipeline', fn () => [
+                'id' => $this->pipeline->id,
+                'name' => $this->pipeline->name,
+            ]),
 
-            'due_date'   => $this->due_date ? $this->due_date->format('Y-m-d') : null,
+            'project' => $this->whenLoaded('project', fn () => [
+                'id' => $this->project->id,
+                'name' => $this->project->name,
+            ]),
+
+            'pipeline_stage_id' => $this->pipeline_stage_id,
+           
+
+            'due_date' => $this->due_date ? $this->due_date->format('Y-m-d') : null,
             'is_overdue' => $this->isOverdue(),
             'is_due_today' => $this->isDueToday(),
 
             'creator' => $this->whenLoaded('creator', fn () => [
-                'id'   => $this->creator->id,
+                'id' => $this->creator->id,
                 'name' => $this->creator->name,
             ]),
 
