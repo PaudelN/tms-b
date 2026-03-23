@@ -96,7 +96,7 @@ class DetailResource extends JsonResource
             'end_date'   => $this->end_date?->format('Y-m-d'),
             'extra'      => $this->extra,
 
-            'created_at' => $this->created_at->format('M d, Y \a\t h:i A'),
+            'created_at' => $this->created_at->diffForHumans(),
             'updated_at' => $this->updated_at?->diffForHumans(),
         ];
     }
