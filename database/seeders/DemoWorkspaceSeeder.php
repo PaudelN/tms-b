@@ -26,6 +26,7 @@ class DemoWorkspaceSeeder extends Seeder
 
         if (! $admin) {
             $this->command->error('Admin user not found. UserSeeder must run first.');
+
             return;
         }
 
@@ -33,13 +34,13 @@ class DemoWorkspaceSeeder extends Seeder
         $workspace = Workspace::firstOrCreate(
             ['slug' => 'demo-workspace'],
             [
-                'name'        => 'Demo Workspace',
+                'name' => 'Demo Workspace',
                 'description' => 'A demo workspace created for client handover.',
-                'user_id'     => $admin->id,
-                'status'      => WorkspaceStatus::ACTIVE,
-                'extra'       => [
+                'user_id' => $admin->id,
+                'status' => WorkspaceStatus::ACTIVE,
+                'extra' => [
                     'color' => '#6366f1',
-                    'icon'  => 'briefcase',
+                    'icon' => 'briefcase',
                 ],
             ]
         );
@@ -48,7 +49,7 @@ class DemoWorkspaceSeeder extends Seeder
         if (! $workspace->members()->where('user_id', $admin->id)->exists()) {
             $workspace->members()->attach($admin->id, [
                 'is_owner' => true,
-                'status'   => 'active',
+                'status' => 'active',
             ]);
         }
 
@@ -58,19 +59,19 @@ class DemoWorkspaceSeeder extends Seeder
         $project = Project::firstOrCreate(
             [
                 'workspace_id' => $workspace->id,
-                'slug'         => 'demo-project',
+                'slug' => 'demo-project',
             ],
             [
-                'created_by'  => $admin->id,
-                'name'        => 'Demo Project',
+                'created_by' => $admin->id,
+                'name' => 'Demo Project',
                 'description' => 'A demo project showcasing the pipeline & task workflow.',
-                'status'      => ProjectStatus::IN_PROGRESS,
-                'visibility'  => ProjectVisibility::PRIVATE,
-                'start_date'  => now()->toDateString(),
-                'end_date'    => now()->addMonths(3)->toDateString(),
-                'extra'       => [
+                'status' => ProjectStatus::IN_PROGRESS,
+                'visibility' => ProjectVisibility::PRIVATE,
+                'start_date' => now()->toDateString(),
+                'end_date' => now()->addMonths(3)->toDateString(),
+                'extra' => [
                     'color' => '#10b981',
-                    'icon'  => 'folder',
+                    'icon' => 'folder',
                 ],
             ]
         );
@@ -81,14 +82,14 @@ class DemoWorkspaceSeeder extends Seeder
         $pipeline = Pipeline::firstOrCreate(
             [
                 'project_id' => $project->id,
-                'slug'       => 'demo-pipeline',
+                'slug' => 'demo-pipeline',
             ],
             [
-                'created_by'  => $admin->id,
-                'name'        => 'Demo Pipeline',
+                'created_by' => $admin->id,
+                'name' => 'Demo Pipeline',
                 'description' => 'Default task pipeline for the demo project.',
-                'status'      => PipelineStatus::ACTIVE,
-                'extras'      => [
+                'status' => PipelineStatus::ACTIVE,
+                'extras' => [
                     'default' => true,
                 ],
             ]
@@ -99,38 +100,38 @@ class DemoWorkspaceSeeder extends Seeder
         // ── Pipeline Stages ───────────────────────────────────────────────────
         $stages = [
             [
-                'name'          => 'Backlog',
-                'display_name'  => 'Backlog',
-                'color'         => '#94a3b8',  // slate-400
-                'wip_limit'     => null,
+                'name' => 'Backlog',
+                'display_name' => 'Backlog',
+                'color' => '#94a3b8',  // slate-400
+                'wip_limit' => null,
                 'display_order' => 1,
             ],
             [
-                'name'          => 'In Progress',
-                'display_name'  => 'In Progress',
-                'color'         => '#3b82f6',  // blue-500
-                'wip_limit'     => 5,
+                'name' => 'In Progress',
+                'display_name' => 'In Progress',
+                'color' => '#3b82f6',  // blue-500
+                'wip_limit' => 5,
                 'display_order' => 2,
             ],
             [
-                'name'          => 'In Review',
-                'display_name'  => 'In Review',
-                'color'         => '#f59e0b',  // amber-500
-                'wip_limit'     => 3,
+                'name' => 'In Review',
+                'display_name' => 'In Review',
+                'color' => '#f59e0b',  // amber-500
+                'wip_limit' => 3,
                 'display_order' => 3,
             ],
             [
-                'name'          => 'QA',
-                'display_name'  => 'QA / Testing',
-                'color'         => '#8b5cf6',  // violet-500
-                'wip_limit'     => 3,
+                'name' => 'QA',
+                'display_name' => 'QA ',
+                'color' => '#8b5cf6',  // violet-500
+                'wip_limit' => 3,
                 'display_order' => 4,
             ],
             [
-                'name'          => 'Done',
-                'display_name'  => 'Done ✓',
-                'color'         => '#22c55e',  // green-500
-                'wip_limit'     => null,
+                'name' => 'Done',
+                'display_name' => 'Done',
+                'color' => '#22c55e',  // green-500
+                'wip_limit' => null,
                 'display_order' => 5,
             ],
         ];
@@ -139,17 +140,17 @@ class DemoWorkspaceSeeder extends Seeder
             $stage = PipelineStage::firstOrCreate(
                 [
                     'pipeline_id' => $pipeline->id,
-                    'slug'        => Str::slug($stageData['name']),
+                    'slug' => Str::slug($stageData['name']),
                 ],
                 [
-                    'created_by'    => $admin->id,
-                    'name'          => $stageData['name'],
-                    'display_name'  => $stageData['display_name'],
+                    'created_by' => $admin->id,
+                    'name' => $stageData['name'],
+                    'display_name' => $stageData['display_name'],
                     'display_order' => $stageData['display_order'],
-                    'color'         => $stageData['color'],
-                    'wip_limit'     => $stageData['wip_limit'],
-                    'status'        => PipelineStageStatus::ACTIVE,
-                    'extras'        => [],
+                    'color' => $stageData['color'],
+                    'wip_limit' => $stageData['wip_limit'],
+                    'status' => PipelineStageStatus::ACTIVE,
+                    'extras' => [],
                 ]
             );
 
