@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+vendor
+.env
+.env.backup
+.git
+.gitignore
+docker-compose.yml
+Dockerfile
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+bootstrap/cache
+public/hot
