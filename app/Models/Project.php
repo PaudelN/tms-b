@@ -8,6 +8,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\ProjectVisibility;
 use App\Traits\Filterable;
 use App\Traits\HasKanban;
+use App\Traits\HasMedia;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class Project extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, HasSlug, Paginatable,SoftDeletes;
+    use Filterable, HasFactory, HasKanban, HasMedia, HasSlug,Paginatable,SoftDeletes;
 
     protected $fillable = [
         'workspace_id',

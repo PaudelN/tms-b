@@ -2,24 +2,29 @@
 
 namespace App\Http\Requests\Media;
 
-use App\Helpers\ApiResponse;
-use Illuminate\Contracts\Validation\Validator;
+use App\Models\Media;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class StoreRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return true; // Add policy check here when roles are introduced
     }
 
     public function rules(): array
     {
+        $allowedMimes = implode(',', Media::ALLOWED_MIMES);
+        $maxKb        = (int) (Media::MAX_SIZE / 1024); // validation rule expects KB
+
         return [
-            'file' => 'required|file|max:102400', // 100 MB max
-            'name' => 'nullable|string|max:255',
-            'extra' => 'nullable|array',
+            'file' => [
+                'required',
+                'file',
+                "mimes:{$allowedMimes}",
+                "max:{$maxKb}",
+            ],
+            'alt' => ['nullable', 'string', 'max:255'],
         ];
     }
 
@@ -27,16 +32,8 @@ class StoreRequest extends FormRequest
     {
         return [
             'file.required' => 'A file is required.',
-            'file.file' => 'The uploaded value must be a valid file.',
-            'file.max' => 'File size cannot exceed 100 MB.',
-            'name.max' => 'File name cannot exceed 255 characters.',
+            'file.mimes'    => 'The uploaded file type is not allowed.',
+            'file.max'      => 'The file may not be larger than ' . (Media::MAX_SIZE / 1024 / 1024) . ' MB.',
         ];
-    }
-
-    protected function failedValidation(Validator $validator)
-    {
-        throw new HttpResponseException(
-            ApiResponse::validationError($validator->errors())
-        );
     }
 }

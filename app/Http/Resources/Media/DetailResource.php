@@ -5,46 +5,40 @@ namespace App\Http\Resources\Media;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Full shape used for single-media show/store responses.
+ *
+ * Adds disk / directory / uploader fields on top of ListResource.
+ */
 class DetailResource extends JsonResource
 {
-    /**
-     * Full shape for single media detail.
-     *
-     * Eager-loads expected from the controller:
-     *   $media->load('creator', 'project')
-     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'original_name' => $this->original_name,
-            'path' => $this->path,
             'url' => $this->url,
-            'mime_type' => $this->mime_type,
-            'type' => $this->type,
-            'size' => $this->size,
-            'human_size' => $this->human_size,
+            'path' => $this->path,
             'disk' => $this->disk,
-            'is_image' => $this->isImage(),
-            'is_video' => $this->isVideo(),
-            'is_document' => $this->isDocument(),
-            'extra' => $this->extra,
+            'directory' => $this->directory,
+            'filename' => $this->filename,
+            'extension' => $this->extension,
+            'mime_type' => $this->mime_type,
+            'aggregate_type' => $this->aggregate_type,
+            'size' => $this->size,
+            'original_filename' => $this->original_filename,
+            'alt' => $this->alt,
 
-            'project' => $this->whenLoaded('project', fn () => [
-                'id' => $this->project->id,
-                'name' => $this->project->name,
-                'slug' => $this->project->slug,
+            // Pivot columns — present only when loaded via morphToMany
+            'tag' => $this->whenPivotLoaded('mediables', fn () => $this->pivot->tag),
+            'order' => $this->whenPivotLoaded('mediables', fn () => $this->pivot->order),
+
+            'uploaded_by' => $this->whenLoaded('uploader', fn () => [
+                'id' => $this->uploader->id,
+                'name' => $this->uploader->name,
             ]),
 
-            'creator' => $this->whenLoaded('creator', fn () => [
-                'id' => $this->creator->id,
-                'name' => $this->creator->name,
-                'email' => $this->creator->email,
-            ]),
-
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->diffForHumans(),
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

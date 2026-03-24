@@ -13,169 +13,223 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Http\Requests\Media\AttachRequest;
+use App\Http\Requests\Media\StoreRequest;
+use App\Http\Resources\Media\DetailResource;
+use App\Http\Resources\Media\ListResource;
+use App\Models\Media;
+use App\Services\MediaService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * MediaController
  *
- * Handles media files attached to a project.
+ * ─── Standalone media CRUD ────────────────────────────────────────────────
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * SHALLOW ROUTING
- * ─────────────────────────────────────────────────────────────────────────────
+ *   POST   /api/media                  → upload file, get Media record back
+ *   GET    /api/media/{media}          → show a single media record
+ *   PATCH  /api/media/{media}          → update alt text
+ *   DELETE /api/media/{media}          → delete file + record
  *
- *   NESTED (project IS in the URL):
- *     GET  /projects/{project}/media   → index()
- *     POST /projects/{project}/media   → store()
+ * ─── Polymorphic model media ──────────────────────────────────────────────
  *
- *   SHALLOW (only {media} in URL):
- *     GET    /media/{media}            → show()
- *     PUT    /media/{media}            → update()
- *     DELETE /media/{media}            → destroy()
+ *   GET    /api/{morphType}/{id}/media                  → list media on a model
+ *   POST   /api/{morphType}/{id}/media/upload           → upload + attach in one
+ *   POST   /api/{morphType}/{id}/media/attach           → attach existing media
+ *   DELETE /api/{morphType}/{id}/media/{media}/detach   → detach from model
+ *   PATCH  /api/{morphType}/{id}/media/reorder          → reorder tag media
+ *
+ * morphType examples: tasks, users, projects, pipelines, workspaces
  */
 class MediaController extends Controller
 {
+    public function __construct(protected MediaService $mediaService) {}
+
+    // ── Standalone CRUD ───────────────────────────────────────────────────────
+
     /**
-     * GET /projects/{project}/media
-     *
-     * List all media files for a project, ordered by newest first.
-     * Supports ?type=image|video|document|other filtering.
+     * POST /api/media
+     * Upload a file. Returns the new Media record.
+     * The file is stored at uploads/{aggregate_type}/{uuid}.{ext}
+     * and is NOT attached to any model yet.
      */
-    public function index(Request $request, Project $project)
+    public function store(StoreRequest $request): JsonResponse
     {
-        $query = Media::query()
-            ->forProject($project->id)
-            ->with('creator')
-            ->orderByDesc('created_at');
+        $media = $this->mediaService->store(
+            file: $request->file('file'),
+            directory: 'uploads/'.Media::aggregateTypeFor(
+                $request->file('file')->getMimeType()
+            ),
+            alt: $request->input('alt'),
+        );
 
-        // Optional type filter
-        if ($request->filled('type')) {
-            $type = $request->query('type');
-            match ($type) {
-                'image' => $query->images(),
-                'video' => $query->where('mime_type', 'like', 'video/%'),
-                'document' => $query->whereIn('mime_type', [
-                    'application/pdf',
-                    'application/msword',
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'application/vnd.ms-excel',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'text/plain',
-                    'text/csv',
-                ]),
-                default => null,
-            };
-        }
+        return ApiResponse::success(
+            new DetailResource($media->load('uploader')),
+            'Media uploaded successfully.',
+            201,
+        );
+    }
 
-        $perPage = min((int) $request->get('per_page', 20), 100);
-        $paginator = $query->paginate($perPage);
+    /**
+     * GET /api/media/{media}
+     */
+    public function show(Media $media): JsonResponse
+    {
+        return ApiResponse::success(
+            new DetailResource($media->load('uploader'))
+        );
+    }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Success',
-            'data' => ListResource::collection($paginator->items()),
-            'meta' => [
-                'total' => $paginator->total(),
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-            ],
+    /**
+     * PATCH /api/media/{media}
+     * Only mutable field right now is `alt`. Extend as needed.
+     */
+    public function update(Request $request, Media $media): JsonResponse
+    {
+        $request->validate([
+            'alt' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $media = $this->mediaService->update($media, $request->only('alt'));
+
+        return ApiResponse::success(
+            new DetailResource($media),
+            'Media updated.'
+        );
     }
 
     /**
-     * POST /projects/{project}/media
-     *
-     * Upload one file and attach it to the project.
-     * The file is stored in the "public" disk under projects/{id}/media/.
+     * DELETE /api/media/{media}
+     * Deletes the physical file and the DB record.
+     * Cascade on mediables removes all pivot rows automatically.
      */
-    public function store(StoreRequest $request, Project $project)
+    public function destroy(Media $media): JsonResponse
     {
-        try {
-            $file = $request->file('file');
+        $this->mediaService->delete($media);
 
-            $originalName = $file->getClientOriginalName();
-            $mimeType = $file->getMimeType();
-            $size = $file->getSize();
-            $disk = 'public';
+        return ApiResponse::success(null, 'Media deleted.');
+    }
 
-            // Generate a unique path to avoid collisions
-            $filename = Str::uuid().'.'.$file->getClientOriginalExtension();
-            $directory = "projects/{$project->id}/media";
-            $path = $file->storeAs($directory, $filename, $disk);
+    // ── Polymorphic helpers ───────────────────────────────────────────────────
 
-            $media = Media::create([
-                'project_id' => $project->id,
-                'created_by' => auth()->id(),
-                'name' => $request->input('name', $originalName),
-                'original_name' => $originalName,
-                'path' => $path,
-                'mime_type' => $mimeType,
-                'size' => $size,
-                'disk' => $disk,
-                'extra' => $request->input('extra'),
-            ]);
+    /**
+     * Resolve the {morphType}/{id} route pair to a model instance.
+     * Returns 404 JSON if morphType is not in the allowed map.
+     */
+    protected function resolveOwner(string $morphType, int $id): \Illuminate\Database\Eloquent\Model
+    {
+        $class = $this->mediaService->resolveModel($morphType);
 
-            $media->load('creator', 'project');
+        abort_if($class === null, 404, "Unknown resource type [{$morphType}].");
 
-            return ApiResponse::created(
-                new DetailResource($media),
-                'Media uploaded successfully'
-            );
-        } catch (\Exception $e) {
-            return ApiResponse::exception($e, 'Failed to upload media');
-        }
+        return $class::findOrFail($id);
+    }
+
+    // ── Model-scoped endpoints ────────────────────────────────────────────────
+
+    /**
+     * GET /api/{morphType}/{id}/media?tag=attachments
+     * List all media on a model, optionally filtered by tag.
+     */
+    public function index(string $morphType, int $id, Request $request): JsonResponse
+    {
+        $model = $this->resolveOwner($morphType, $id);
+        $tag = $request->query('tag');
+
+        $media = $model->getMedia($tag);
+
+        return ApiResponse::success(ListResource::collection($media));
     }
 
     /**
-     * GET /media/{media}   ← shallow
-     *
-     * Return full details for a single media file.
+     * POST /api/{morphType}/{id}/media/upload
+     * Upload a file and immediately attach it to the model.
      */
-    public function show(Media $media)
-    {
-        $media->load('creator', 'project');
+    public function uploadAndAttach(
+        StoreRequest $request,
+        string $morphType,
+        int $id
+    ): JsonResponse {
+        $model = $this->resolveOwner($morphType, $id);
+        $tag = $request->input('tag', 'default');
 
-        return ApiResponse::successData(new DetailResource($media));
+        $media = $this->mediaService->storeAndAttach(
+            file: $request->file('file'),
+            model: $model,
+            tag: $tag,
+            alt: $request->input('alt'),
+        );
+
+        return ApiResponse::success(
+            new DetailResource($media->load('uploader')),
+            'File uploaded and attached.',
+            201,
+        );
     }
 
     /**
-     * PUT /media/{media}   ← shallow
-     *
-     * Update the display name and/or extra metadata of a media file.
-     * The actual file is never replaced — upload a new one instead.
+     * POST /api/{morphType}/{id}/media/attach
+     * Attach an already-uploaded media record to this model.
+     * Body: { media_id: 5, tag: "attachments", order: 0 }
      */
-    public function update(UpdateRequest $request, Media $media)
-    {
-        try {
-            $media->update($request->validated());
+    public function attach(
+        AttachRequest $request,
+        string $morphType,
+        int $id
+    ): JsonResponse {
+        $model = $this->resolveOwner($morphType, $id);
 
-            $media->load('creator', 'project');
+        $model->attachMedia(
+            $request->integer('media_id'),
+            $request->input('tag', 'default'),
+            $request->input('order'),
+        );
 
-            return ApiResponse::successData(
-                new DetailResource($media),
-                'Media updated successfully'
-            );
-        } catch (\Exception $e) {
-            return ApiResponse::exception($e, 'Failed to update media');
-        }
+        return ApiResponse::success(null, 'Media attached.');
     }
 
     /**
-     * DELETE /media/{media}   ← shallow
-     *
-     * Soft-delete the media record and remove the file from storage.
+     * DELETE /api/{morphType}/{id}/media/{media}/detach
+     * Remove the relationship between media and model (file is NOT deleted).
      */
-    public function destroy(Media $media)
-    {
-        try {
-            // Delete the physical file before soft-deleting the record
-            Storage::disk($media->disk)->delete($media->path);
+    public function detach(
+        string $morphType,
+        int $id,
+        Media $media,
+        Request $request
+    ): JsonResponse {
+        $model = $this->resolveOwner($morphType, $id);
+        $tag = $request->query('tag', 'default');
 
-            $media->delete();
+        $model->detachMedia($media, $tag);
 
-            return ApiResponse::success('Media deleted successfully');
-        } catch (\Exception $e) {
-            return ApiResponse::exception($e, 'Failed to delete media');
-        }
+        return ApiResponse::success(null, 'Media detached.');
+    }
+
+    /**
+     * PATCH /api/{morphType}/{id}/media/reorder
+     * Re-order media within a tag.
+     * Body: { tag: "attachments", ordered_ids: [3, 1, 2] }
+     */
+    public function reorder(
+        Request $request,
+        string $morphType,
+        int $id
+    ): JsonResponse {
+        $request->validate([
+            'tag' => ['nullable', 'string', 'max:64'],
+            'ordered_ids' => ['required', 'array'],
+            'ordered_ids.*' => ['integer', 'exists:media,id'],
+        ]);
+
+        $model = $this->resolveOwner($morphType, $id);
+
+        $model->reorderMedia(
+            $request->input('ordered_ids'),
+            $request->input('tag', 'default'),
+        );
+
+        return ApiResponse::success( 'Media reordered.');
     }
 }
