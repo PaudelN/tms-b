@@ -6,6 +6,7 @@ use App\Contracts\KanbanEntity;
 use App\Enums\TaskPriority;
 use App\Traits\Filterable;
 use App\Traits\HasKanban;
+use App\Traits\HasMedia;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, Paginatable, SoftDeletes;
+    use Filterable, HasFactory, HasKanban, HasMedia, Paginatable,SoftDeletes;
 
     protected $fillable = [
         'pipeline_id',
@@ -32,10 +33,10 @@ class Task extends Model implements KanbanEntity
     ];
 
     protected $casts = [
-        'priority'  => TaskPriority::class,
-        'extra'     => 'array',
-        'due_date'  => 'date',
-        'sort_order'=> 'integer',
+        'priority' => TaskPriority::class,
+        'extra' => 'array',
+        'due_date' => 'date',
+        'sort_order' => 'integer',
     ];
 
     // ── KanbanEntity contract ─────────────────────────────────────────────────
@@ -115,7 +116,7 @@ class Task extends Model implements KanbanEntity
 
         $next = (int) $max + 1;
 
-        return 'T-' . str_pad($next, 4, '0', STR_PAD_LEFT);
+        return 'TSK-'.str_pad($next, 4, '0', STR_PAD_LEFT);
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -165,6 +166,7 @@ class Task extends Model implements KanbanEntity
     public function scopeByPriority($query, string|array $priority)
     {
         $values = is_array($priority) ? $priority : [$priority];
+
         return $query->whereIn('priority', $values);
     }
 
