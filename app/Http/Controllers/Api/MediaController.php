@@ -4,6 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Media\StoreRequest;
+use App\Http\Requests\Media\UpdateRequest;
+use App\Http\Resources\Media\DetailResource;
+use App\Http\Resources\Media\ListResource;
+use App\Models\Media;
+use App\Models\Project;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use App\Http\Requests\Media\AttachRequest;
 use App\Http\Requests\Media\StoreRequest;
 use App\Http\Resources\Media\DetailResource;

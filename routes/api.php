@@ -83,6 +83,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('tasks/{task}/update', [TaskController::class, 'update'])->name('tasks.update.post');
 
+    // ── Media ─────────────────────────────────────────────────────────────────
+
+    Route::get('projects/{project}/media', [MediaController::class, 'index'])->name('projects.media.index');
+    Route::post('projects/{project}/media', [MediaController::class, 'store'])->name('projects.media.store');
+    Route::get('media/{media}', [MediaController::class, 'show'])->name('media.show');
+    Route::put('media/{media}', [MediaController::class, 'update'])->name('media.update');
+    Route::delete('media/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
+
     // ── Users ─────────────────────────────────────────────────────────────────
 
     Route::get('/users', function () {

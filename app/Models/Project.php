@@ -85,6 +85,14 @@ class Project extends Model implements KanbanEntity
     }
 
     /**
+     * All media files attached to this project.
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(Media::class)->orderByDesc('created_at');
+    }
+
+    /**
      * Only active pipelines — useful for task-creation dropdowns
      * where inactive pipelines should not be selectable.
      */
