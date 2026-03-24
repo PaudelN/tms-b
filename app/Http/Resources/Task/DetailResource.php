@@ -64,8 +64,8 @@ class DetailResource extends JsonResource
                 'name' => $this->updater->name,
             ]),
 
-            'created_at' => $this->created_at->format('M d, Y \a\t h:i A'),
-            'updated_at' => $this->updated_at?->diffForHumans(),
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];
     }
 }

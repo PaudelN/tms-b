@@ -17,10 +17,10 @@ class DatabaseSeeder extends Seeder
         $this->command->info('🌱 Starting database seeding...');
         $this->command->newLine();
 
-        // Run seeders in order
         $this->call([
-            UserSeeder::class,
-            WorkspaceSeeder::class,
+            UserSeeder::class,           // Creates admin@example.com, test@example.com + 20 random users
+            WorkspaceSeeder::class,      // Creates bulk random workspaces for all users
+            DemoWorkspaceSeeder::class,  // Creates: Demo Workspace → Demo Project → Demo Pipeline → 5 stages
             // Future seeders go here:
             // ProjectSeeder::class,
             // TaskSeeder::class,
