@@ -4,18 +4,20 @@ namespace App\Models;
 
 use App\Enums\PipelineStatus;
 use App\Traits\Filterable;
+use App\Traits\HasMedia;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
 class Pipeline extends Model
 {
-    use Filterable, HasFactory, HasSlug, Paginatable, SoftDeletes;
+    use Filterable, HasFactory, HasMedia,HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'project_id',
@@ -56,6 +58,18 @@ class Pipeline extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function media(): MorphToMany
+    {
+        return $this->morphToMany(Media::class, 'mediable', 'mediables')
+            ->withPivot(['tag', 'order'])
+            ->orderBy('mediables.order');
+    }
+
+    public function mediaByTag(string $tag): MorphToMany
+    {
+        return $this->media()->wherePivot('tag', $tag);
     }
 
     /**

@@ -6,12 +6,14 @@ use App\Contracts\KanbanEntity;
 use App\Enums\WorkspaceStatus;
 use App\Traits\Filterable;
 use App\Traits\HasKanban;
+use App\Traits\HasMedia;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Sluggable\HasSlug;
@@ -19,7 +21,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class Workspace extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, HasSlug, Paginatable, SoftDeletes;
+    use Filterable, HasFactory, HasKanban,HasMedia, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -32,7 +34,7 @@ class Workspace extends Model implements KanbanEntity
 
     protected $casts = [
         'status' => WorkspaceStatus::class,
-        'extra'  => 'array',
+        'extra' => 'array',
     ];
 
     // ── KanbanEntity contract ─────────────────────────────────────────────────
@@ -75,6 +77,18 @@ class Workspace extends Model implements KanbanEntity
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function media(): MorphToMany
+    {
+        return $this->morphToMany(Media::class, 'mediable', 'mediables')
+            ->withPivot(['tag', 'order'])
+            ->orderBy('mediables.order');
+    }
+
+    public function mediaByTag(string $tag): MorphToMany
+    {
+        return $this->media()->wherePivot('tag', $tag);
+    }
+
     /**
      * All projects that belong to this workspace.
      * Ordered by created_at desc so latest appear first in workspace detail.
@@ -108,8 +122,8 @@ class Workspace extends Model implements KanbanEntity
         $token = (string) Str::uuid();
 
         $this->members()->attach($userId, [
-            'is_owner'     => false,
-            'status'       => 'pending',
+            'is_owner' => false,
+            'status' => 'pending',
             'invite_token' => $token,
         ]);
 
@@ -124,8 +138,8 @@ class Workspace extends Model implements KanbanEntity
             ->firstOrFail();
 
         $this->members()->updateExistingPivot($userId, [
-            'user_id'      => $userId,
-            'status'       => 'active',
+            'user_id' => $userId,
+            'status' => 'active',
             'invite_token' => null,
         ]);
     }

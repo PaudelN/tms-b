@@ -11,6 +11,7 @@ use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model implements KanbanEntity
@@ -144,6 +145,18 @@ class Task extends Model implements KanbanEntity
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function media(): MorphToMany
+    {
+        return $this->morphToMany(Media::class, 'mediable', 'mediables')
+            ->withPivot(['tag', 'order'])
+            ->orderBy('mediables.order');
+    }
+
+    public function mediaByTag(string $tag): MorphToMany
+    {
+        return $this->media()->wherePivot('tag', $tag);
     }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
