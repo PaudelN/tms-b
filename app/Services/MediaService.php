@@ -12,27 +12,6 @@ use Illuminate\Support\Str;
  *
  * Central place for all file operations. Controllers and traits
  * delegate here — nothing touches Storage or Media directly.
- *
- * ─── Upload a file ────────────────────────────────────────────────────────
- *
- *   $media = $mediaService->store(
- *       file: $request->file('file'),
- *       directory: 'uploads/tasks/42/attachments',
- *       disk: 'public',           // optional, default = 'public'
- *       alt: $request->alt,       // optional
- *   );
- *
- * ─── Delete a file ────────────────────────────────────────────────────────
- *
- *   $mediaService->delete($media);
- *
- * ─── Convenience: upload + attach in one call ─────────────────────────────
- *
- *   $media = $mediaService->storeAndAttach(
- *       file: $request->file('file'),
- *       model: $task,
- *       tag: 'attachments',
- *   );
  */
 class MediaService
 {
@@ -50,12 +29,10 @@ class MediaService
         string $disk = 'public',
         ?string $alt = null,
     ): Media {
-        // Generate a unique filename to prevent collisions
         $filename = Str::uuid()->toString();
         $extension = strtolower($file->getClientOriginalExtension());
         $mimeType = $file->getMimeType() ?? $file->getClientMimeType();
 
-        // Save to disk — putFileAs keeps the path predictable
         Storage::disk($disk)->putFileAs(
             $directory,
             $file,
@@ -82,12 +59,10 @@ class MediaService
      */
     public function delete(Media $media): void
     {
-        // Remove physical file (silently ignore if missing)
         if (Storage::disk($media->disk)->exists($media->path)) {
             Storage::disk($media->disk)->delete($media->path);
         }
 
-        // Delete the DB record (cascade will clean up mediables rows)
         $media->delete();
     }
 
@@ -103,7 +78,6 @@ class MediaService
         string $disk = 'public',
         ?string $alt = null,
     ): Media {
-        // Build a contextual directory:  uploads/{model_type}/{id}/{tag}
         $morphType = strtolower(class_basename($model));
         $directory = Media::directory($morphType, $model->getKey(), $tag);
 
@@ -123,13 +97,25 @@ class MediaService
      * Update mutable metadata fields on an existing Media record.
      * The physical file is NOT touched.
      *
+     * FIX: The original used array_filter(..., fn($v) => $v !== null) which
+     * silently dropped intentional null values (clearing alt).
+     * We now only update keys that were explicitly passed in $data.
+     *
      * @param  array{alt?: string|null}  $data
      */
     public function update(Media $media, array $data): Media
     {
-        $media->update(array_filter([
-            'alt' => $data['alt'] ?? $media->alt,
-        ], fn ($v) => $v !== null));
+        // Only touch fields that are explicitly present in $data —
+        // this allows callers to pass null to clear a field.
+        $payload = [];
+
+        if (array_key_exists('alt', $data)) {
+            $payload['alt'] = $data['alt'];
+        }
+
+        if (! empty($payload)) {
+            $media->update($payload);
+        }
 
         return $media->fresh();
     }
@@ -137,14 +123,14 @@ class MediaService
     /**
      * Resolve a polymorphic model string to its Eloquent class.
      *
-     * "tasks" → App\Models\Task
-     * "users" → App\Models\User
-     *
-     * Used by the polymorphic attach/detach routes.
+     *   "tasks"      → App\Models\Task
+     *   "users"      → App\Models\User
+     *   "projects"   → App\Models\Project
+     *   "pipelines"  → App\Models\Pipeline
+     *   "workspaces" → App\Models\Workspace
      */
     public function resolveModel(string $morphType): ?string
     {
-        // Map of route-friendly plural strings → model classes
         $map = [
             'tasks' => \App\Models\Task::class,
             'users' => \App\Models\User::class,

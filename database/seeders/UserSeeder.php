@@ -4,46 +4,54 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Create admin user
-        User::factory()->create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'extra' => [
-                'phone' => '+1-555-0100',
-                'avatar' => 'https://ui-avatars.com/api/?name=Admin+User',
-                'bio' => 'System Administrator',
-                'timezone' => 'UTC',
-                'role' => 'admin',
-            ],
-        ]);
+        // ── Admin user ─────────────────────────────────────────────────────────
+        User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Admin User',
+                'password' => Hash::make('password'),
+                'extra' => [
+                    'phone' => '+1-555-0100',
+                    'avatar' => 'https://ui-avatars.com/api/?name=Admin+User',
+                    'bio' => 'System Administrator',
+                    'timezone' => 'UTC',
+                    'role' => 'admin',
+                ],
+            ]
+        );
 
-        // Create test user
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'extra' => [
-                'phone' => '+1-555-0101',
-                'avatar' => 'https://ui-avatars.com/api/?name=Test+User',
-                'bio' => 'Test account for development',
-                'timezone' => 'UTC',
-                'role' => 'user',
-            ],
-        ]);
+        // ── Test user ──────────────────────────────────────────────────────────
+        User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'password' => Hash::make('password'),
+                'extra' => [
+                    'phone' => '+1-555-0101',
+                    'avatar' => 'https://ui-avatars.com/api/?name=Test+User',
+                    'bio' => 'Test account for development',
+                    'timezone' => 'UTC',
+                    'role' => 'user',
+                ],
+            ]
+        );
 
-        // Create additional random users
-        User::factory(20)->create();
+        // ── Random users (only create if we don't have enough yet) ─────────────
+        $existing = User::whereNotIn('email', ['admin@example.com', 'test@example.com'])->count();
+        $needed = max(0, 20 - $existing);
 
-        $this->command->info('✓ Users created successfully!');
-        $this->command->info('  - Admin: admin@example.com');
-        $this->command->info('  - Test: test@example.com');
-        $this->command->info('  - Password: password (for all users)');
+        if ($needed > 0) {
+            User::factory($needed)->create();
+        }
+
+        $this->command->info('✓ Users seeded successfully!');
+        $this->command->info('  - Admin: admin@example.com / password');
+        $this->command->info('  - Test:  test@example.com / password');
     }
 }

@@ -83,14 +83,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('tasks/{task}/update', [TaskController::class, 'update'])->name('tasks.update.post');
 
-    // ── Media ─────────────────────────────────────────────────────────────────
-
-    Route::get('projects/{project}/media', [MediaController::class, 'index'])->name('projects.media.index');
-    Route::post('projects/{project}/media', [MediaController::class, 'store'])->name('projects.media.store');
-    Route::get('media/{media}', [MediaController::class, 'show'])->name('media.show');
-    Route::put('media/{media}', [MediaController::class, 'update'])->name('media.update');
-    Route::delete('media/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
-
     // ── Users ─────────────────────────────────────────────────────────────────
 
     Route::get('/users', function () {
@@ -99,37 +91,57 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ── Media ─────────────────────────────────────────────────────────────────
     //
-    // Standalone (upload once, reuse anywhere):
-    //   POST   /api/media                          upload a file
-    //   GET    /api/media/{media}                  show a file record
-    //   PATCH  /api/media/{media}                  update alt text
-    //   DELETE /api/media/{media}                  delete file + record
+    // ─── Standalone CRUD (the global media library) ───────────────────────────
     //
-    // Polymorphic model attachment:
-    //   GET    /api/{type}/{id}/media               list media on a model
+    //   GET    /api/media               list ALL media records (global library)
+    //   POST   /api/media               upload a file (no model attachment)
+    //   GET    /api/media/{media}       show a single record + uploader
+    //   PATCH  /api/media/{media}       update alt text
+    //   DELETE /api/media/{media}       delete file from disk + media row
+    //                                   (cascade removes all mediables rows)
+    //
+    // ─── Polymorphic model attachment ─────────────────────────────────────────
+    //
+    //   GET    /api/{type}/{id}/media               list media attached to a model
     //   POST   /api/{type}/{id}/media/upload        upload + attach in one step
-    //   POST   /api/{type}/{id}/media/attach        attach existing media
-    //   DELETE /api/{type}/{id}/media/{media}/detach remove from model (keeps file)
-    //   PATCH  /api/{type}/{id}/media/reorder       reorder within a tag
+    //   POST   /api/{type}/{id}/media/attach        attach existing media { media_id, tag }
+    //   DELETE /api/{type}/{id}/media/{id}/detach   remove pivot row only (file kept)
+    //   PATCH  /api/{type}/{id}/media/reorder       reorder within a tag { ordered_ids }
     //
-    // {type} = tasks | users | projects | pipelines | workspaces
+    // {type} constrained to: tasks | users | projects | pipelines | workspaces
+    //
+    // ⚠️  DECLARATION ORDER IS CRITICAL:
+    //   The standalone routes MUST appear BEFORE the polymorphic group.
+    //   If the polymorphic group came first, the literal segment "media" in
+    //   GET /api/media would be matched as {morphType} = "media", which is not
+    //   in the whereIn list and would 404.
+    //
+    // ⚠️  modelIndex vs index:
+    //   MediaController has two list methods:
+    //     index()       → GET /api/media          (global, all records)
+    //     modelIndex()  → GET /api/{type}/{id}/media  (scoped to one model)
+    //   We cannot use the same method name because both routes are registered
+    //   on the same controller and apiResource-style magic would conflict.
 
-    // Standalone CRUD
+    // ── Standalone routes (must be first) ─────────────────────────────────────
+    Route::get('media/counts', [MediaController::class, 'counts'])->name('media.counts');
+    Route::get('media', [MediaController::class, 'index'])->name('media.index');
     Route::post('media', [MediaController::class, 'store'])->name('media.store');
     Route::get('media/{media}', [MediaController::class, 'show'])->name('media.show');
     Route::patch('media/{media}', [MediaController::class, 'update'])->name('media.update');
     Route::delete('media/{media}', [MediaController::class, 'destroy'])->name('media.destroy');
 
-    // Polymorphic model routes
-    // NOTE: The {morphType} segment must come before other shallow resource routes
-    //       to avoid collision. These are specific enough that conflicts won't occur.
-    Route::prefix('{morphType}/{morphId}/media')->group(function () {
-        Route::get('/', [MediaController::class, 'index'])->name('model.media.index');
-        Route::post('upload', [MediaController::class, 'uploadAndAttach'])->name('model.media.upload');
-        Route::post('attach', [MediaController::class, 'attach'])->name('model.media.attach');
-        Route::delete('{media}/detach', [MediaController::class, 'detach'])->name('model.media.detach');
-        Route::patch('reorder', [MediaController::class, 'reorder'])->name('model.media.reorder');
-    })->whereIn('morphType', ['tasks', 'users', 'projects', 'pipelines', 'workspaces']);
-    //  ^^^^ whereIn locks the segment to valid values only — prevents routing conflicts
-
+    // ── Polymorphic model routes ───────────────────────────────────────────────
+    // whereIn locks {morphType} to the known entity types, preventing conflicts
+    // with the standalone /media routes above and any future shallow resources.
+    Route::prefix('{morphType}/{morphId}/media')
+        ->whereIn('morphType', ['tasks', 'users', 'projects', 'pipelines', 'workspaces'])
+        ->group(function () {
+            // NOTE: maps to modelIndex(), NOT index() — see comment block above.
+            Route::get('/', [MediaController::class, 'modelIndex'])->name('model.media.index');
+            Route::post('upload', [MediaController::class, 'uploadAndAttach'])->name('model.media.upload');
+            Route::post('attach', [MediaController::class, 'attach'])->name('model.media.attach');
+            Route::delete('{media}/detach', [MediaController::class, 'detach'])->name('model.media.detach');
+            Route::patch('reorder', [MediaController::class, 'reorder'])->name('model.media.reorder');
+        });
 });

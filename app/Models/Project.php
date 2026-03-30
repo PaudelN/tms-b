@@ -14,13 +14,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
 class Project extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, HasMedia, HasSlug,Paginatable,SoftDeletes;
+    use Filterable, HasFactory, HasKanban, HasMedia, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'workspace_id',
@@ -45,9 +46,6 @@ class Project extends Model implements KanbanEntity
     ];
 
     // ── Slug ──────────────────────────────────────────────────────────────────
-    // Slug is unique per workspace, not globally.
-    // spatie/sluggable handles uniqueness by appending -1, -2 etc.
-    // The unique(['workspace_id', 'slug']) DB constraint is the hard guard.
 
     public function getSlugOptions(): SlugOptions
     {
@@ -70,10 +68,6 @@ class Project extends Model implements KanbanEntity
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /**
-     * All pipelines belonging to this project.
-     * Ordered by creation so the frontend renders them consistently.
-     */
     public function pipelines(): HasMany
     {
         return $this->hasMany(Pipeline::class);
@@ -84,23 +78,30 @@ class Project extends Model implements KanbanEntity
         return $this->hasMany(Task::class, 'project_id');
     }
 
-    /**
-     * All media files attached to this project.
-     */
-    public function media(): HasMany
-    {
-        return $this->hasMany(Media::class)->orderByDesc('created_at');
-    }
-
-    /**
-     * Only active pipelines — useful for task-creation dropdowns
-     * where inactive pipelines should not be selectable.
-     */
     public function activePipelines(): HasMany
     {
         return $this->hasMany(Pipeline::class)
             ->where('status', PipelineStatus::ACTIVE)
             ->orderBy('created_at');
+    }
+
+    /**
+     * All media attached to this project via the polymorphic mediables pivot.
+     * Replaces the old hasMany(Media::class) which wrongly assumed a project_id column.
+     */
+    public function media(): MorphToMany
+    {
+        return $this->morphToMany(Media::class, 'mediable', 'mediables')
+            ->withPivot(['tag', 'order'])
+            ->orderBy('mediables.order');
+    }
+
+    /**
+     * Media filtered by a specific tag slot (e.g. "cover", "attachments").
+     */
+    public function mediaByTag(string $tag): MorphToMany
+    {
+        return $this->media()->wherePivot('tag', $tag);
     }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
@@ -115,6 +116,11 @@ class Project extends Model implements KanbanEntity
         return $query->where('status', ProjectStatus::IN_PROGRESS);
     }
 
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', ProjectStatus::COMPLETED);
+    }
+
     // ── KanbanEntity contract ─────────────────────────────────────────────────
 
     public function kanbanColumnField(): string
@@ -127,20 +133,9 @@ class Project extends Model implements KanbanEntity
         return true;
     }
 
-    public function kanbanAfterMove(string $field, mixed $newStageValue): void
-    {
-        // Example: ProjectStageChanged::dispatch($this, $newStageValue);
-    }
+    public function kanbanAfterMove(string $field, mixed $newStageValue): void {}
 
-    public function kanbanBeforeMove(mixed $newStageValue): void
-    {
-        //
-    }
-
-    public function scopeCompleted($query)
-    {
-        return $query->where('status', ProjectStatus::COMPLETED);
-    }
+    public function kanbanBeforeMove(mixed $newStageValue): void {}
 
     // ── Computed helpers ──────────────────────────────────────────────────────
 

@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\Filterable;
+use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
 class Media extends Model
 {
-    // ── Aggregate-type constants ──────────────────────────────────────────────
-    // Use these everywhere instead of raw strings so a typo is a compile error.
+    use Filterable, Paginatable;
 
+    // ── Aggregate-type constants ──────────────────────────────────────────────
     const TYPE_IMAGE = 'image';
 
     const TYPE_VIDEO = 'video';
@@ -22,8 +24,6 @@ class Media extends Model
     const TYPE_OTHER = 'other';
 
     // ── MIME → aggregate-type map ─────────────────────────────────────────────
-    // Extend this list as you support more formats.
-
     const AGGREGATE_MAP = [
         self::TYPE_IMAGE => [
             'image/jpeg', 'image/png', 'image/gif',
@@ -51,16 +51,10 @@ class Media extends Model
     ];
 
     // ── Allowed upload MIME types ─────────────────────────────────────────────
-    // Flat list used by the StoreRequest validation rule.
-
     const ALLOWED_MIMES = [
-        // Images
         'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp',
-        // Video
         'mp4', 'mov', 'avi', 'webm',
-        // Audio
         'mp3', 'wav', 'ogg', 'aac',
-        // Documents
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv',
     ];
 
@@ -82,12 +76,13 @@ class Media extends Model
         'uploaded_by',
     ];
 
-    protected $appends = ['url', 'path'];
+    // url, path, human_size are computed — appended to every serialisation
+    protected $appends = ['url', 'path', 'human_size'];
 
     // ── Computed attributes ───────────────────────────────────────────────────
 
     /**
-     * Relative storage path:  "uploads/tasks/photo.jpg"
+     * Relative storage path: "uploads/tasks/42/photo.jpg"
      */
     public function getPathAttribute(): string
     {
@@ -98,11 +93,28 @@ class Media extends Model
 
     /**
      * Public URL via the configured disk.
-     * Works for local (public) disk and S3 alike.
      */
     public function getUrlAttribute(): string
     {
-        return Storage::disk($this->disk)->url($this->path);
+        return asset(Storage::disk($this->disk)->url($this->path));
+    }
+
+    /**
+     * Human-readable file size (e.g. "1.4 MB", "320 KB").
+     */
+    public function getHumanSizeAttribute(): string
+    {
+        $bytes = (int) $this->size;
+
+        if ($bytes >= 1_048_576) {
+            return round($bytes / 1_048_576, 1).' MB';
+        }
+
+        if ($bytes >= 1_024) {
+            return round($bytes / 1_024, 1).' KB';
+        }
+
+        return $bytes.' B';
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -112,12 +124,41 @@ class Media extends Model
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
+    // ── Scopes ────────────────────────────────────────────────────────────────
+
+    /**
+     * Filter by aggregate type (image, video, audio, document, other).
+     *
+     *   Media::query()->ofType('image')->get();
+     */
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('aggregate_type', $type);
+    }
+
+    /**
+     * Filter by the uploading user.
+     *
+     *   Media::query()->uploadedBy($userId)->get();
+     */
+    public function scopeUploadedBy($query, int $userId)
+    {
+        return $query->where('uploaded_by', $userId);
+    }
+
+    /**
+     * Order by newest first (default for the global library).
+     */
+    public function scopeLatest($query)
+    {
+        return $query->orderBy('created_at', 'desc');
+    }
+
     // ── Static helpers ────────────────────────────────────────────────────────
 
     /**
      * Derive the aggregate type from a MIME type string.
      *
-     * Usage:
      *   Media::aggregateTypeFor('image/jpeg')  → 'image'
      *   Media::aggregateTypeFor('text/html')   → 'other'
      */
@@ -135,15 +176,14 @@ class Media extends Model
     /**
      * Build the storage directory for a given context.
      *
-     * Examples:
-     *   Media::directory('tasks')           → "uploads/tasks"
-     *   Media::directory('tasks', 42)       → "uploads/tasks/42"
+     *   Media::directory('tasks')               → "uploads/tasks"
+     *   Media::directory('tasks', 42)           → "uploads/tasks/42"
      *   Media::directory('users', 7, 'avatars') → "uploads/users/7/avatars"
      */
     public static function directory(
         string $context,
         ?int $id = null,
-        ?string $tag = null
+        ?string $tag = null,
     ): string {
         $parts = ['uploads', $context];
 
