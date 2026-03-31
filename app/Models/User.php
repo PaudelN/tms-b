@@ -2,21 +2,23 @@
 
 namespace App\Models;
 
+use App\Traits\HasMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, HasMedia,Notifiable;
 
     protected $fillable = [
         'name',
         'email',
         'password',
-        'extra'
+        'extra',
     ];
 
     protected $hidden = [
@@ -40,7 +42,19 @@ class User extends Authenticatable
     public function joinedWorkspaces(): BelongsToMany
     {
         return $this->belongsToMany(Workspace::class, 'workspace_users')
-                    ->withPivot('is_owner', 'status', 'invite_token')
-                    ->withTimestamps();
+            ->withPivot('is_owner', 'status', 'invite_token')
+            ->withTimestamps();
+    }
+
+    public function media(): MorphToMany
+    {
+        return $this->morphToMany(Media::class, 'mediable', 'mediables')
+            ->withPivot(['tag', 'order'])
+            ->orderBy('mediables.order');
+    }
+
+    public function mediaByTag(string $tag): MorphToMany
+    {
+        return $this->media()->wherePivot('tag', $tag);
     }
 }
