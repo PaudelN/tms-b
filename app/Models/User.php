@@ -57,4 +57,19 @@ class User extends Authenticatable
     {
         return $this->media()->wherePivot('tag', $tag);
     }
+
+    // social accounts linked to user
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
+    }
+
+    /**
+     * Returns the avatar URL from any linked social account,
+     * falling back to null if none exist.
+     */
+    public function getSocialAvatarAttribute(): ?string
+    {
+        return $this->socialAccounts()->whereNotNull('avatar')->value('avatar');
+    }
 }

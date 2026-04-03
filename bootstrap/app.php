@@ -14,12 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->use([
             \Illuminate\Http\Middleware\HandleCors::class,
-            \App\Http\Middleware\HandleOptionsRequest::class,          
             \Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
             \Illuminate\Http\Middleware\TrustProxies::class,
             \Illuminate\Http\Middleware\ValidatePostSize::class,
             \Illuminate\Foundation\Http\Middleware\TrimStrings::class,
             \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'auth/*/callback',
         ]);
 
         $middleware->api(prepend: [
