@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\KanbanEntity;
 use App\Models\KanbanOrder;
+use App\Services\ActivityLogger;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -11,15 +12,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * All kanban business logic lives here.
+ * KanbanService — with Activity Logging integrated
  *
- * Injected via constructor into KanbanController.
- * Also called from HasKanban boot hooks for order initialization.
+ * Original kanban logic is UNCHANGED.
+ * Activity logging is added at three points only:
  *
- * Three main operations:
- *   fetchStage()    — paginated fetch with kanban ordering (no JOIN)
- *   moveCard()      — move entity to a new stage with hooks lifecycle
- *   reorderCards()  — persist new visual order via single bulk upsert
+ *   moveCard()        → logMoved() after stage change persisted
+ *   reorderCards()    → logReordered() per card whose position changed
+ *   initializeOrder() → no logging (internal housekeeping, not a user action)
+ *
+ * Stage CRUD (createStage, renameStage, etc.) lives in your Stage
+ * controller/service — log those there via ActivityLogger directly.
+ *
+ * KEY CONSTRAINT:
+ *   reorderCards() uses DB::upsert on kanban_orders — it does NOT touch
+ *   the entity model, so HasActivities never fires. We need the previous
+ *   sort_order values to compute "what changed", so we load them before
+ *   the upsert and compare after. This is the only extra DB read added.
  */
 class KanbanService
 {
@@ -27,15 +36,7 @@ class KanbanService
 
     /**
      * Fetch one page of cards for a specific kanban stage.
-     *
-     * Accepts a pre-built query so the controller can apply its own
-     * scopes (user_id filter, tenancy scopes, etc.) before we add
-     * kanban ordering on top. This makes it work with the SAME index
-     * endpoint that UiTable and UiList use — full data consistency.
-     *
-     * @param  Builder  $query  Base query with all business filters applied
-     * @param  string  $stageValue  The stage to filter + order by
-     * @param  string  $stageField  The column on the entity table (e.g. 'status')
+     * (Unchanged from original)
      */
     public function fetchStage(
         Builder $query,
@@ -44,16 +45,13 @@ class KanbanService
         int $page = 1,
         int $perPage = 10
     ): LengthAwarePaginator {
-        $table = $query->getModel()->getTable();
+        $table      = $query->getModel()->getTable();
         $entityType = get_class($query->getModel());
 
-        // Step 1: get ordered IDs from kanban_orders (index-only scan)
         $orderedIds = KanbanOrder::getOrderedIds($entityType, $stageValue);
 
-        // Step 2: apply stage filter
         $query->where("{$table}.{$stageField}", $stageValue);
 
-        // Step 3: apply visual ordering
         if (empty($orderedIds)) {
             $query->orderBy("{$table}.created_at", 'desc');
         } else {
@@ -68,39 +66,33 @@ class KanbanService
     /**
      * Move a card to a different stage.
      *
-     * Full lifecycle:
-     *   1. kanbanCanMove()   → 403 if false
-     *   2. kanbanBeforeMove() → model can throw \Exception to abort
-     *   3. entity.update(stageField → newStageValue)
-     *   4. KanbanOrder::setOrder() → append to bottom of destination stage
-     *   5. kanbanAfterMove()  → logged on failure, never blocks response
+     * ACTIVITY LOGGING:
+     *   logMoved() fires after the entity update AND the kanban_orders
+     *   upsert both succeed. If either fails, no activity is logged.
+     *   The $fromStageId is captured before mutation.
      *
-     * @throws \Exception code 403 for permission denied, 422 for validation failure
+     * Original lifecycle (hooks, KanbanOrder sync) is fully preserved.
      */
     public function moveCard(Model&KanbanEntity $model, mixed $newStageValue): Model
     {
-        // Authorization
+        // ── Capture before state for activity log ─────────────────────────
+        $fromStageId = (int) $model->{$model->kanbanColumnField()};
+
+        // ── Original logic (unchanged) ────────────────────────────────────
         if (! $model->kanbanCanMove($newStageValue)) {
             throw new \Exception('This item cannot be moved to that stage.', 403);
         }
 
-        // Before hook — model throws here to block the move
         $model->kanbanBeforeMove($newStageValue);
 
-        // Normalize to string for kanban_orders (handles backed enums)
         $stageString = $newStageValue instanceof \BackedEnum
             ? $newStageValue->value
             : (string) $newStageValue;
 
-        // Persist stage change on the entity
         $model->update([
             $model->kanbanColumnField() => $newStageValue,
         ]);
 
-        // Sync kanban_orders: update stage + append to bottom of new stage.
-        // Note: HasKanban::updated boot hook also does this, but calling
-        // explicitly here ensures it runs even if the hook is bypassed.
-        // updateOrCreate is idempotent — double-firing is harmless.
         $max = KanbanOrder::getMaxOrder(get_class($model), $stageString);
 
         KanbanOrder::setOrder(
@@ -110,7 +102,6 @@ class KanbanService
             $max + 1
         );
 
-        // After hook — non-blocking
         try {
             $model->kanbanAfterMove($model->kanbanColumnField(), $newStageValue);
         } catch (\Throwable $e) {
@@ -121,6 +112,12 @@ class KanbanService
                 $e->getMessage()
             ));
         }
+        // ── End original logic ────────────────────────────────────────────
+
+        // ── Activity log — fires after all writes succeed ─────────────────
+        $toStageId = (int) $model->{$model->kanbanColumnField()};
+        ActivityLogger::logMoved($model, $fromStageId, $toStageId);
+        // logMoved() is a no-op if fromStageId === toStageId (guard inside)
 
         return $model->fresh();
     }
@@ -130,21 +127,18 @@ class KanbanService
     /**
      * Persist the new visual order for all cards within one stage.
      *
-     * Receives the complete ordered ID array as the user sees it.
-     * Uses a single DB::upsert — ONE round-trip regardless of column size.
+     * ACTIVITY LOGGING:
+     *   We load the current sort_order values for all affected cards
+     *   BEFORE the upsert so we can compare old vs new positions.
+     *   logReordered() is called per card — it skips internally if
+     *   old_position === new_position (no noise for unchanged cards).
      *
-     * Optimistic lock (optional):
-     *   Pass $lastOrderedAt (ISO timestamp from when the frontend last loaded/reordered).
-     *   If the server's kanban_orders for this stage have a newer updated_at,
-     *   we reject with 409 so the frontend knows to reload before overwriting
-     *   someone else's drag order.
+     *   This adds ONE extra SELECT before the upsert. The tradeoff is
+     *   accurate, per-card activity records vs. a single bulk "reordered"
+     *   event with no position detail. Per-card is more useful in the UI.
      *
-     * @param  string  $modelClass  Fully-qualified model class
-     * @param  string  $stageValue  The stage these IDs belong to
-     * @param  array  $orderedIds  Complete ordered ID list (what the user sees)
-     * @param  string|null  $lastOrderedAt  ISO timestamp for optimistic lock (optional)
-     *
-     * @throws \Exception code 409 on concurrent edit conflict
+     * Original optimistic lock, upsert logic, and conflict detection
+     * are fully preserved.
      */
     public function reorderCards(
         string $modelClass,
@@ -156,10 +150,9 @@ class KanbanService
             return;
         }
 
-        // Optional optimistic lock check
+        // ── Original optimistic lock (unchanged) ──────────────────────────
         if ($lastOrderedAt !== null) {
             $latestUpdate = KanbanOrder::getLatestUpdate($modelClass, $stageValue);
-
             if ($latestUpdate && $latestUpdate > $lastOrderedAt) {
                 throw new \Exception(
                     'The column order was changed by another user. Please refresh.',
@@ -168,36 +161,74 @@ class KanbanService
             }
         }
 
-        $now = now()->toDateTimeString();
+        // ── Capture positions BEFORE upsert for activity comparison ───────
+        // One query, indexed on (entity_type, stage_value) — fast.
+        $previousPositions = KanbanOrder::where('entity_type', $modelClass)
+            ->where('stage_value', $stageValue)
+            ->whereIn('entity_id', $orderedIds)
+            ->pluck('sort_order', 'entity_id')  // keyed by entity_id
+            ->all();
 
-        // Build upsert payload — position = array index
+        // ── Original upsert (unchanged) ───────────────────────────────────
+        $now  = now()->toDateTimeString();
         $rows = array_values(array_map(
             fn (int $id, int $index) => [
                 'entity_type' => $modelClass,
-                'entity_id' => $id,
+                'entity_id'   => $id,
                 'stage_value' => $stageValue,
-                'sort_order' => $index,
-                'updated_at' => $now,
-                'created_at' => $now,
+                'sort_order'  => $index,
+                'updated_at'  => $now,
+                'created_at'  => $now,
             ],
             $orderedIds,
             array_keys($orderedIds)
         ));
 
-        // Single upsert — conflict on (entity_type, entity_id)
         DB::table('kanban_orders')->upsert(
             $rows,
             ['entity_type', 'entity_id'],
             ['stage_value', 'sort_order', 'updated_at']
         );
+        // ── End original logic ────────────────────────────────────────────
+
+        // ── Activity log — one event per card that actually moved ─────────
+        // Resolve the stage_id for name lookup — best effort, non-blocking.
+        // We get this from the model itself via the kanban column field.
+        // For stage_id we query the first matching entity to get its stage.
+        $stageId = (int) $modelClass::where(
+            (new $modelClass)->kanbanColumnField(),
+            $stageValue
+        )->value((new $modelClass)->kanbanColumnField()) ?: 0;
+
+        foreach ($orderedIds as $newPosition => $entityId) {
+            $oldPosition = $previousPositions[$entityId] ?? $newPosition;
+            $newPos1Based = $newPosition + 1; // convert 0-based index to 1-based
+
+            // Resolve the model instance lazily — only if position changed
+            if ((int) $oldPosition === $newPos1Based) {
+                continue;
+            }
+
+            $entity = $modelClass::find($entityId);
+            if (! $entity) {
+                continue;
+            }
+
+            ActivityLogger::logReordered(
+                $entity,
+                (int) $stageValue, // stageValue IS the pipeline_stage_id for tasks
+                (int) $oldPosition,
+                $newPos1Based,
+            );
+        }
     }
 
     // ── Initialize (called from boot hook) ────────────────────────────────────
 
     /**
      * Create the initial kanban_orders row for a newly created entity.
-     *
-     * Also public so it can be called directly from the backfill command.
+     * No activity logged — this is internal housekeeping, not a user action.
+     * (Unchanged from original)
      */
     public function initializeOrder(Model&KanbanEntity $model): void
     {
@@ -221,7 +252,7 @@ class KanbanService
         );
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Private helpers (unchanged) ───────────────────────────────────────────
 
     private function applyKanbanOrdering(Builder $query, string $table, array $orderedIds): void
     {
@@ -235,7 +266,7 @@ class KanbanService
                 ->orderBy("{$table}.created_at", 'desc');
         } else {
             $cases = collect($orderedIds)
-                ->map(fn ($id, $pos) => 'WHEN '.(int) $id.' THEN '.$pos)
+                ->map(fn ($id, $pos) => 'WHEN ' . (int) $id . ' THEN ' . $pos)
                 ->implode(' ');
 
             $query

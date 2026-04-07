@@ -6,8 +6,9 @@ return [
     'paths' => [
         'api/*',
         'sanctum/csrf-cookie',
+        'broadcasting/auth',
         'auth/*',
-        '/',        
+        '/',
     ],
     'allowed_methods' => ['*'],
     'allowed_origins' => ['http://localhost:3000'],

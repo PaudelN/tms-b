@@ -7,6 +7,7 @@ use App\Enums\PipelineStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectVisibility;
 use App\Traits\Filterable;
+use App\Traits\HasActivities;
 use App\Traits\HasKanban;
 use App\Traits\HasMedia;
 use App\Traits\Paginatable;
@@ -21,7 +22,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class Project extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, HasMedia, HasSlug, Paginatable, SoftDeletes;
+    use Filterable,HasActivities, HasFactory, HasKanban, HasMedia, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'workspace_id',
@@ -43,6 +44,14 @@ class Project extends Model implements KanbanEntity
         'extra' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
+    ];
+
+    protected array $activityIgnoreFields = [
+        'slug',          // auto-generated
+        'cover_image',   // media handled separately
+        'extra',         // internal JSON
+        'created_by',    // system-level
+        'updated_at',    // noise
     ];
 
     // ── Slug ──────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Contracts\KanbanEntity;
 use App\Enums\TaskPriority;
 use App\Traits\Filterable;
+use App\Traits\HasActivities;
 use App\Traits\HasKanban;
 use App\Traits\HasMedia;
 use App\Traits\Paginatable;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban, HasMedia, Paginatable,SoftDeletes;
+    use Filterable, HasActivities, HasFactory, HasKanban, HasMedia, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'pipeline_id',
@@ -40,12 +41,15 @@ class Task extends Model implements KanbanEntity
         'sort_order' => 'integer',
     ];
 
+    protected array $activityIgnoreFields = [
+        'pipeline_stage_id', // covered by logMoved() — richer context
+        'sort_order',        // covered by logReordered() via KanbanService
+        'extra',             // internal JSON bag
+        'updated_by',        // housekeeping
+        'project_id',        // denormalized, changes silently
+    ];
+
     // ── KanbanEntity contract ─────────────────────────────────────────────────
-    //
-    // The kanban column key for tasks is the pipeline_stage_id.
-    // When a card is dragged to a new column, KanbanService updates this field.
-    // KanbanOrder stores the stage id as a string (e.g. "42") — same as
-    // kanbanStages[n].value on the frontend.
 
     public function kanbanColumnField(): string
     {
@@ -54,18 +58,11 @@ class Task extends Model implements KanbanEntity
 
     public function kanbanCanMove(mixed $newStageValue): bool
     {
-        // Add WIP limit check here when needed:
-        // $stage = PipelineStage::find($newStageValue);
-        // if ($stage?->wip_limit) {
-        //     $count = Task::where('pipeline_stage_id', $newStageValue)->count();
-        //     return $count < $stage->wip_limit;
-        // }
         return true;
     }
 
     public function kanbanBeforeMove(mixed $newStageValue): void
     {
-        // Verify the target stage belongs to the same pipeline
         $stage = PipelineStage::find($newStageValue);
         if (! $stage || $stage->pipeline_id !== $this->pipeline_id) {
             throw new \Exception('Target stage does not belong to this pipeline.', 422);
@@ -74,17 +71,8 @@ class Task extends Model implements KanbanEntity
 
     public function kanbanAfterMove(string $field, mixed $newStageValue): void
     {
-        // Keep project_id in sync (denormalized for convenience)
-        // Also update updated_by if auth user is available
-        $this->updateQuietly([
-            'updated_by' => auth()->id(),
-        ]);
+        $this->updateQuietly(['updated_by' => auth()->id()]);
     }
-
-    // ── Boot — task number generation ─────────────────────────────────────────
-    //
-    // Generates a human-readable task number per pipeline: T-0001, T-0002 …
-    // Uses DB-level max to avoid collisions under concurrent inserts.
 
     protected static function boot(): void
     {
@@ -94,8 +82,6 @@ class Task extends Model implements KanbanEntity
             if (empty($task->task_number)) {
                 $task->task_number = static::generateTaskNumber($task->pipeline_id);
             }
-
-            // Denormalize project_id from pipeline if not explicitly set
             if (empty($task->project_id) && $task->pipeline_id) {
                 $task->project_id = Pipeline::find($task->pipeline_id)?->project_id;
             }
@@ -115,9 +101,7 @@ class Task extends Model implements KanbanEntity
             ->lockForUpdate()
             ->max(\DB::raw("CAST(SUBSTRING_INDEX(task_number, '-', -1) AS UNSIGNED)"));
 
-        $next = (int) $max + 1;
-
-        return 'TSK-'.str_pad($next, 4, '0', STR_PAD_LEFT);
+        return 'TSK-'.str_pad((int) $max + 1, 4, '0', STR_PAD_LEFT);
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -178,9 +162,7 @@ class Task extends Model implements KanbanEntity
 
     public function scopeByPriority($query, string|array $priority)
     {
-        $values = is_array($priority) ? $priority : [$priority];
-
-        return $query->whereIn('priority', $values);
+        return $query->whereIn('priority', (array) $priority);
     }
 
     public function scopeOverdue($query)
@@ -198,7 +180,7 @@ class Task extends Model implements KanbanEntity
         return $query->orderBy('sort_order')->orderBy('created_at');
     }
 
-    // ── Computed helpers ──────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function isOverdue(): bool
     {

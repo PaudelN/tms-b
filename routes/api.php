@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\PipelineController;
 use App\Http\Controllers\Api\PipelineStageController;
@@ -144,4 +145,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('{media}/detach', [MediaController::class, 'detach'])->name('model.media.detach');
             Route::patch('reorder', [MediaController::class, 'reorder'])->name('model.media.reorder');
         });
+
+    Route::get(
+        '/{entityType}/{entityId}/activities',
+        [ActivityController::class, 'index']
+    )->name('activities.index');
 });
