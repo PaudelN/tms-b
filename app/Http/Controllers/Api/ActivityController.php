@@ -48,6 +48,10 @@ class ActivityController extends Controller
     private array $entityMap = [
         'tasks' => 'task',
         'projects' => 'project',
+        'pipelines' => 'pipeline',
+        'pipeline_stages' => 'pipeline_stage',
+        'workspaces' => 'workspace',
+        'users' => 'user',
     ];
 
     public function index(Request $request, string $entityType, int $entityId): JsonResponse

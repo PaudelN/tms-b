@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PipelineStatus;
 use App\Traits\Filterable;
+use App\Traits\HasActivities;
 use App\Traits\HasMedia;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class Pipeline extends Model
 {
-    use Filterable, HasFactory, HasMedia,HasSlug, Paginatable, SoftDeletes;
+    use Filterable,HasActivities, HasFactory, HasMedia,HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'project_id',
@@ -32,6 +33,13 @@ class Pipeline extends Model
     protected $casts = [
         'status' => PipelineStatus::class,
         'extras' => 'array',
+    ];
+
+     protected array $activityIgnoreFields = [
+        'slug',          // auto-generated
+        'extra',         // internal JSON
+        'created_by',    // system-level
+        'updated_at',    // noise
     ];
 
     // ── Slug ──────────────────────────────────────────────────────────────────

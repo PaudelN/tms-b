@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Contracts\KanbanEntity;
 use App\Enums\WorkspaceStatus;
 use App\Traits\Filterable;
+use App\Traits\HasActivities;
 use App\Traits\HasKanban;
 use App\Traits\HasMedia;
 use App\Traits\Paginatable;
@@ -21,7 +22,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class Workspace extends Model implements KanbanEntity
 {
-    use Filterable, HasFactory, HasKanban,HasMedia, HasSlug, Paginatable, SoftDeletes;
+    use Filterable,HasActivities, HasFactory, HasKanban,HasMedia, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -35,6 +36,13 @@ class Workspace extends Model implements KanbanEntity
     protected $casts = [
         'status' => WorkspaceStatus::class,
         'extra' => 'array',
+    ];
+
+    protected array $activityIgnoreFields = [
+        'slug',          // auto-generated
+        'extra',         // internal JSON
+        'created_by',    // system-level
+        'updated_at',    // noise
     ];
 
     // ── KanbanEntity contract ─────────────────────────────────────────────────

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PipelineStageStatus;
 use App\Traits\Filterable;
+use App\Traits\HasActivities;
 use App\Traits\Paginatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use Spatie\Sluggable\SlugOptions;
 
 class PipelineStage extends Model
 {
-    use Filterable, HasFactory, HasSlug, Paginatable, SoftDeletes;
+    use Filterable,HasActivities, HasFactory, HasSlug, Paginatable, SoftDeletes;
 
     protected $fillable = [
         'pipeline_id',

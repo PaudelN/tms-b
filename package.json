@@ -1,6 +1,10 @@
 {
-  "devDependencies": {
-    "laravel-echo": "^2.3.3",
-    "pusher-js": "^8.5.0"
-  }
+    "devDependencies": {
+        "concurrently": "^9.2.1",
+        "laravel-echo": "^2.3.3",
+        "pusher-js": "^8.5.0"
+    },
+    "scripts": {
+        "dev:full": "php artisan config:clear && php artisan cache:clear && concurrently -n \"SERVER,REVERB,QUEUE\" -c \"green,blue,yellow\" \"php artisan serve\" \"php artisan reverb:start --debug\" \"php artisan queue:work --queue=default\""
+    }
 }
